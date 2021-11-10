@@ -2,6 +2,8 @@ use super::bindings;
 use super::match_finder;
 use super::entropy_ranking;
 use super::entropy_ranking::RankedWord;
+use super::match_finder::MatchGen;
+use super::match_finder::Match;
 
 pub struct Word {
     pub location: usize,
@@ -39,11 +41,9 @@ pub struct MdmaIndex<'a> {
 // [X] Entropy ranking function
 // [ ] Parser
 
-// println!("Size of match: {}", std::mem::size_of::<Match>());
-// println!("Size of word: {}", std::mem::size_of::<Word>());
-// println!("Size of u64: {}", std::mem::size_of::<u64>());
-
 pub fn build_dictionary(buf: &Vec<u8>) -> Vec<Word> {
+    println!("Size of match: {}", std::mem::size_of::<Match>());
+    println!("Size of match_gen: {}", std::mem::size_of::<MatchGen>());
     // Build bwd_index
     let sa = &build_suffix_array(buf);
     let lcp = &build_lcp_array(sa, buf);
@@ -54,18 +54,15 @@ pub fn build_dictionary(buf: &Vec<u8>) -> Vec<Word> {
 
     // Initialize the match-holding structure
     let mut curr_matches = match_finder::generate(&lcp);
-    let mut matches = Vec::<match_finder::Match>::with_capacity(curr_matches.len());
+    let mut matches = Vec::<Match>::with_capacity(curr_matches.len());
     println!("Matches vec holds: {} matches", curr_matches.len());
 
     loop {
         std::mem::swap(&mut matches, &mut curr_matches);
         curr_matches.clear();
         curr_matches.shrink_to(matches.len());
-        let mut best_match = match_finder::Match { sa_index: 0, sa_count: 0, len: 0 };
-        let mut best_word = RankedWord {
-            word: Word { location: 0, len: 0 },
-            count: -1, rank: 0f64
-        };
+        let mut best_match = Match::empty();
+        let mut best_word = RankedWord::empty();
 
         if matches.is_empty() { break; }
 
@@ -79,7 +76,8 @@ pub fn build_dictionary(buf: &Vec<u8>) -> Vec<Word> {
             }
         }
 
-        best_word.print();
+        if best_word.count == -1 { break; }
+        // best_word.print();
         dict.push(best_word.word.clone());
         entropy_ranking::split(&best_match, mdma_index);
         entropy_ranking::update_model(&best_word, mdma_index);

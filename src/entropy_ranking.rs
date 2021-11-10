@@ -12,6 +12,13 @@ impl RankedWord {
     pub fn print(&self) {
         println!("word -> ({}, {}); c={}, r={}", self.word.location, self.word.len, self.count, self.rank);
     }
+
+    pub fn empty() -> Self {
+        Self {
+            word: Word { location: 0, len: 0 },
+            count: -1, rank: 0f64
+        }
+    }
 }
 
 impl Clone for RankedWord {
@@ -24,7 +31,7 @@ impl Clone for RankedWord {
 
 pub fn rank(m: &Match, mdma_index: &mut MdmaIndex<'_>) -> Option<RankedWord> {
     // From match_finder we know len >= 2 and sa_count >= 2
-    let len = m.len as usize;
+    let len = m.get_len() as usize;
     let (count, loc) = count(m, mdma_index);
     if count < 2 { return None; }
 
@@ -71,7 +78,7 @@ fn count(m: &Match, mdma_index: &MdmaIndex) -> (i32, usize) {
     locations.copy_from_slice(&mdma_index.sa[range]);
     locations.sort_unstable();
 
-    let len = m.len as i32;
+    let len = m.get_len() as i32;
     let mut count = 0;
     let mut last_match = - len;
 
@@ -98,7 +105,7 @@ pub fn split(best_match: &Match, mdma_index: &mut MdmaIndex) {
     locations.sort_unstable();
 
     // Initialize parsing variables
-    let len = best_match.len as i32;
+    let len = best_match.get_len() as i32;
     let mut parsed_locs = Vec::with_capacity(locations.len());
     let mut last_match = - len;
 

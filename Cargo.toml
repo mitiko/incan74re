@@ -1,5 +1,5 @@
 [package]
-name = "bwd"
+name = "mdma"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,3 +9,7 @@ edition = "2021"
 
 [build-dependencies]
 cc = "1.0.71"
+
+[profile.release]
+debug = 1
+lto = "fat"
