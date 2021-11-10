@@ -20,7 +20,7 @@ impl Clone for Word {
     }
 }
 
-pub struct BwdIndex<'a> {
+pub struct MdmaIndex<'a> {
     pub buf:   &'a Vec<u8>,
     pub sa:    &'a Vec<i32>,
     pub lcp:   &'a Vec<i32>,
@@ -49,7 +49,7 @@ pub fn build_dictionary(buf: &Vec<u8>) -> Vec<Word> {
     let lcp = &build_lcp_array(sa, buf);
     let model = &mut build_model(buf);
     let spots = &mut vec![0; buf.len()];
-    let bwd_index = &mut BwdIndex { buf, sa, lcp, spots, model, sym_counts: &mut [0f64; 256], n: &mut (buf.len() as i32) };
+    let mdma_index = &mut MdmaIndex { buf, sa, lcp, spots, model, sym_counts: &mut [0f64; 256], n: &mut (buf.len() as i32) };
     let mut dict = vec![];
 
     // Initialize the match-holding structure
@@ -70,7 +70,7 @@ pub fn build_dictionary(buf: &Vec<u8>) -> Vec<Word> {
         if matches.is_empty() { break; }
 
         for m in &matches {
-            if let Some(ranked_word) = entropy_ranking::rank(m, bwd_index) {
+            if let Some(ranked_word) = entropy_ranking::rank(m, mdma_index) {
                 curr_matches.push(m.clone());
                 if ranked_word.rank > best_word.rank {
                     best_word = ranked_word.clone();
@@ -81,8 +81,8 @@ pub fn build_dictionary(buf: &Vec<u8>) -> Vec<Word> {
 
         best_word.print();
         dict.push(best_word.word.clone());
-        entropy_ranking::split(&best_match, bwd_index);
-        entropy_ranking::update_model(&best_word, bwd_index);
+        entropy_ranking::split(&best_match, mdma_index);
+        entropy_ranking::update_model(&best_word, mdma_index);
     }
 
     return dict;

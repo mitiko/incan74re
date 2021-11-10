@@ -1,6 +1,6 @@
-use super::bwd::BwdIndex;
+use super::mdma::MdmaIndex;
 use super::match_finder::Match;
-use super::bwd::Word;
+use super::mdma::Word;
 
 pub struct RankedWord {
     pub word: Word,
@@ -22,30 +22,30 @@ impl Clone for RankedWord {
 
 // TODO: Add get_entropy
 
-pub fn rank(m: &Match, bwd_index: &mut BwdIndex<'_>) -> Option<RankedWord> {
+pub fn rank(m: &Match, mdma_index: &mut MdmaIndex<'_>) -> Option<RankedWord> {
     // From match_finder we know len >= 2 and sa_count >= 2
     let len = m.len as usize;
-    let (count, loc) = count(m, bwd_index);
+    let (count, loc) = count(m, mdma_index);
     if count < 2 { return None; }
 
-    let slice = &bwd_index.buf[loc..(loc + len)];
+    let slice = &mdma_index.buf[loc..(loc + len)];
     for &sym in slice {
-        bwd_index.sym_counts[sym as usize] += 1f64;
+        mdma_index.sym_counts[sym as usize] += 1f64;
     }
 
     let mut rank = 0f64;
     let count_prec = count as f64;
-    let n_prec = *bwd_index.n as f64;
+    let n_prec = *mdma_index.n as f64;
     let len_prec = len as f64;
     let n1 = n_prec - count_prec * (len_prec - 1f64);
 
     for sym in slice {
         let sym_index = *sym as usize;
-        let sym_count = bwd_index.sym_counts[sym_index];
+        let sym_count = mdma_index.sym_counts[sym_index];
         if sym_count == 0f64 { continue; }
-        bwd_index.sym_counts[sym_index] = 0f64;
+        mdma_index.sym_counts[sym_index] = 0f64;
 
-        let cx = bwd_index.model[sym_index];
+        let cx = mdma_index.model[sym_index];
         let cxw = cx - sym_count * count_prec;
         rank += cxw * cxw.log2() - cx * cx.log2();
     }
@@ -65,10 +65,10 @@ pub fn rank(m: &Match, bwd_index: &mut BwdIndex<'_>) -> Option<RankedWord> {
 }
 
 // Must guarantee location is an unused location
-fn count(m: &Match, bwd_index: &BwdIndex) -> (i32, usize) {
+fn count(m: &Match, mdma_index: &MdmaIndex) -> (i32, usize) {
     let range = m.get_range();
     let mut locations = vec![0; range.len()];
-    locations.copy_from_slice(&bwd_index.sa[range]);
+    locations.copy_from_slice(&mdma_index.sa[range]);
     locations.sort_unstable();
 
     let len = m.len as i32;
@@ -78,8 +78,8 @@ fn count(m: &Match, bwd_index: &BwdIndex) -> (i32, usize) {
     for loc in locations {
         if loc < last_match + len { continue; }
 
-        let a = bwd_index.spots[loc as usize];
-        let b = bwd_index.spots[(loc + len - 1) as usize];
+        let a = mdma_index.spots[loc as usize];
+        let b = mdma_index.spots[(loc + len - 1) as usize];
 
         if a == b && a != -1 {
             last_match = loc;
@@ -90,11 +90,11 @@ fn count(m: &Match, bwd_index: &BwdIndex) -> (i32, usize) {
     return (count, last_match as usize);
 }
 
-pub fn split(best_match: &Match, bwd_index: &mut BwdIndex) {
+pub fn split(best_match: &Match, mdma_index: &mut MdmaIndex) {
     // Find word from SA
     let range = best_match.get_range();
     let mut locations = vec![0; range.len()];
-    locations.copy_from_slice(&bwd_index.sa[range]);
+    locations.copy_from_slice(&mdma_index.sa[range]);
     locations.sort_unstable();
 
     // Initialize parsing variables
@@ -106,8 +106,8 @@ pub fn split(best_match: &Match, bwd_index: &mut BwdIndex) {
     for loc in locations {
         if loc < last_match + len { continue; }
 
-        let a = bwd_index.spots[loc as usize];
-        let b = bwd_index.spots[(loc + len - 1) as usize];
+        let a = mdma_index.spots[loc as usize];
+        let b = mdma_index.spots[(loc + len - 1) as usize];
 
         if a == b && a != -1 {
             last_match = loc;
@@ -118,34 +118,34 @@ pub fn split(best_match: &Match, bwd_index: &mut BwdIndex) {
     // Slice by word
     for loc in parsed_locs {
         for i in 0..len {
-            bwd_index.spots[(loc+i) as usize] = -1;
+            mdma_index.spots[(loc+i) as usize] = -1;
         }
     }
 
     // Compute spots vector
     let mut spot = 0;
     let mut last = -1;
-    for i in 0..bwd_index.spots.len() {
-        if bwd_index.spots[i] != -1 {
+    for i in 0..mdma_index.spots.len() {
+        if mdma_index.spots[i] != -1 {
             if last == -1 {
-                bwd_index.spots[i] = spot;
+                mdma_index.spots[i] = spot;
                 spot += 1;
             }
             else {
-                bwd_index.spots[i] = last;
+                mdma_index.spots[i] = last;
             }
         }
 
-        last = bwd_index.spots[i];
+        last = mdma_index.spots[i];
     }
 }
 
-pub fn update_model(ranked_word: &RankedWord, bwd_index: &mut BwdIndex) {
-    let slice = &bwd_index.buf[ranked_word.word.get_range()];
+pub fn update_model(ranked_word: &RankedWord, mdma_index: &mut MdmaIndex) {
+    let slice = &mdma_index.buf[ranked_word.word.get_range()];
     let count = ranked_word.count as f64;
     for &sym in slice {
-        bwd_index.model[sym as usize] -= count;
+        mdma_index.model[sym as usize] -= count;
     }
 
-    *bwd_index.n -= ranked_word.count * (ranked_word.word.len - 1) as i32;
+    *mdma_index.n -= ranked_word.count * (ranked_word.word.len - 1) as i32;
 }
