@@ -2,7 +2,6 @@ use super::bindings;
 use super::match_finder;
 use super::entropy_ranking;
 use super::entropy_ranking::RankedWord;
-use super::match_finder::MatchGen;
 use super::match_finder::Match;
 
 pub struct Word {
@@ -42,8 +41,6 @@ pub struct MdmaIndex<'a> {
 // [ ] Parser
 
 pub fn build_dictionary(buf: &Vec<u8>) -> Vec<Word> {
-    println!("Size of match: {}", std::mem::size_of::<Match>());
-    println!("Size of match_gen: {}", std::mem::size_of::<MatchGen>());
     // Build bwd_index
     let sa = &build_suffix_array(buf);
     let lcp = &build_lcp_array(sa, buf);
@@ -66,7 +63,7 @@ pub fn build_dictionary(buf: &Vec<u8>) -> Vec<Word> {
 
         if matches.is_empty() { break; }
 
-        for m in &matches {
+        for m in &mut matches {
             if let Some(ranked_word) = entropy_ranking::rank(m, mdma_index) {
                 curr_matches.push(m.clone());
                 if ranked_word.rank > best_word.rank {

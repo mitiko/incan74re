@@ -1,6 +1,6 @@
 pub fn generate(lcp_array: &Vec<i32>) -> Vec<Match> {
     let mut matches = Vec::with_capacity((lcp_array.len() as f64 * 0.75) as usize);
-    let mut stack = vec![];
+    let mut stack = Vec::with_capacity(256);
 
     for index in 0..lcp_array.len() {
         let lcp = lcp_array[index];
@@ -41,7 +41,7 @@ pub fn generate(lcp_array: &Vec<i32>) -> Vec<Match> {
 // (but I think the bigger range can't compensate for the extra complexity per access)
 // - same with sa_count
 #[repr(packed(1))]
-pub struct MatchGen {
+struct MatchGen {
     sa_index: u32,
     len: u8
 }
@@ -56,7 +56,9 @@ impl MatchGen {
 // len is (low) 8 bits and sa_count is (high) 24 bits
 // This seems to be enough for regular (up to 2GB) text files
 // Matches with len > 256 bytes can be
+#[repr(packed(1))]
 pub struct Match {
+    pub self_ref: bool,
     pub sa_index: u32,
     sa_count_len: u32
 }
@@ -66,11 +68,11 @@ impl Match {
         // Branchless clamp to [0-16777215] (u24 range)
         let sa_count_clamped = sa_count + (sa_count > 0xff_ff_ff) as u32 * (0xff_ff_ff - sa_count);
         let sa_count_len = (sa_count_clamped << 8) | mg.len as u32;
-        Self { sa_index: mg.sa_index, sa_count_len }
+        Self { sa_index: mg.sa_index, sa_count_len, self_ref: true }
     }
 
     pub fn empty() -> Self {
-        Self { sa_index: 0, sa_count_len: 0 }
+        Self { sa_index: 0, sa_count_len: 0, self_ref: true }
     }
 
     pub fn get_range(&self) -> std::ops::Range<usize> {
@@ -88,6 +90,6 @@ impl Match {
 
 impl Clone for Match {
     fn clone(&self) -> Self {
-        Self { sa_index: self.sa_index.clone(), sa_count_len: self.sa_count_len.clone() }
+        Self { sa_index: self.sa_index, sa_count_len: self.sa_count_len, self_ref: self.self_ref }
     }
 }

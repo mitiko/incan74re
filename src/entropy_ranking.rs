@@ -9,9 +9,9 @@ pub struct RankedWord {
 }
 
 impl RankedWord {
-    pub fn print(&self) {
-        println!("word -> ({}, {}); c={}, r={}", self.word.location, self.word.len, self.count, self.rank);
-    }
+    // pub fn print(&self) {
+    //     println!("word -> ({}, {}); c={}, r={}", self.word.location, self.word.len, self.count, self.rank);
+    // }
 
     pub fn empty() -> Self {
         Self {
@@ -23,13 +23,13 @@ impl RankedWord {
 
 impl Clone for RankedWord {
     fn clone(&self) -> Self {
-        Self { word: self.word.clone(), count: self.count.clone(), rank: self.rank.clone() }
+        Self { word: self.word.clone(), count: self.count, rank: self.rank }
     }
 }
 
 // TODO: Add get_entropy
 
-pub fn rank(m: &Match, mdma_index: &mut MdmaIndex<'_>) -> Option<RankedWord> {
+pub fn rank(m: &mut Match, mdma_index: &mut MdmaIndex<'_>) -> Option<RankedWord> {
     // From match_finder we know len >= 2 and sa_count >= 2
     let len = m.get_len() as usize;
     let (count, loc) = count(m, mdma_index);
@@ -49,15 +49,19 @@ pub fn rank(m: &Match, mdma_index: &mut MdmaIndex<'_>) -> Option<RankedWord> {
     for sym in slice {
         let sym_index = *sym as usize;
         let sym_count = mdma_index.sym_counts[sym_index];
+        // TODO: Try to find a branchless solution to this?
+        // Maybe zero out some stuff, would that be faster? (cx:=0, cxw:=0 would make rank_d=0)
         if sym_count == 0f64 { continue; }
         mdma_index.sym_counts[sym_index] = 0f64;
 
         let cx = mdma_index.model[sym_index];
         let cxw = cx - sym_count * count_prec;
+        // TODO: Vectorize this
         rank += cxw * cxw.log2() - cx * cx.log2();
     }
 
     rank -= (8 * (len + 1)) as f64; // Dictionary overhead
+    // TODO: Could also try to vectorize these 3*2 ops into just 2 ops
     rank += count_prec * count_prec.log2();
     rank -= n1 * n1.log2();
     rank += n_prec * n_prec.log2();
@@ -72,7 +76,33 @@ pub fn rank(m: &Match, mdma_index: &mut MdmaIndex<'_>) -> Option<RankedWord> {
 }
 
 // Must guarantee location is an unused location
-fn count(m: &Match, mdma_index: &MdmaIndex) -> (i32, usize) {
+fn count(m: &mut Match, mdma_index: &MdmaIndex) -> (i32, usize) {
+    match m.self_ref {
+        false => count_fast(m, mdma_index),
+        true => count_slow(m, mdma_index)
+    }
+}
+
+fn count_fast(m: &mut Match, mdma_index: &MdmaIndex) -> (i32, usize) {
+    let range = m.get_range();
+    let len = m.get_len() as i32;
+    let mut count = 0;
+    let mut last_match = - len;
+
+    for loc in &mdma_index.sa[range] {
+        let a = mdma_index.spots[*loc as usize];
+        let b = mdma_index.spots[(*loc + len - 1) as usize];
+
+        // Branchless counting
+        let condition = (a == b && a != -1) as i32;
+        count += condition;
+        last_match = last_match + condition * (*loc - last_match);
+    }
+
+    (count, last_match as usize)
+}
+
+fn count_slow(m: &mut Match, mdma_index: &MdmaIndex) -> (i32, usize) {
     let range = m.get_range();
     let mut locations = vec![0; range.len()];
     locations.copy_from_slice(&mdma_index.sa[range]);
@@ -80,70 +110,64 @@ fn count(m: &Match, mdma_index: &MdmaIndex) -> (i32, usize) {
 
     let len = m.get_len() as i32;
     let mut count = 0;
+    let mut flag = false;
     let mut last_match = - len;
 
     for loc in locations {
-        if loc < last_match + len { continue; }
+        if loc < last_match + len { flag = true; continue; }
 
         let a = mdma_index.spots[loc as usize];
         let b = mdma_index.spots[(loc + len - 1) as usize];
+        let condition = (a == b && a != -1) as i32;
 
-        if a == b && a != -1 {
-            last_match = loc;
-            count += 1;
-        }
+        count += condition;
+        last_match = last_match + condition * (loc - last_match);
     }
 
-    return (count, last_match as usize);
+    m.self_ref = flag;
+    (count, last_match as usize)
 }
 
-pub fn split(best_match: &Match, mdma_index: &mut MdmaIndex) {
+pub fn parse(best_match: &Match, mdma_index: &mut MdmaIndex) {
     // Find word from SA
-    let range = best_match.get_range();
-    let mut locations = vec![0; range.len()];
-    locations.copy_from_slice(&mdma_index.sa[range]);
+    let sa_range = best_match.get_range();
+    let mut locations = vec![0; sa_range.len()];
+    locations.copy_from_slice(&mdma_index.sa[sa_range]);
     locations.sort_unstable();
 
     // Initialize parsing variables
     let len = best_match.get_len() as i32;
-    let mut parsed_locs = Vec::with_capacity(locations.len());
     let mut last_match = - len;
 
     // Parse
     for loc in locations {
         if loc < last_match + len { continue; }
 
-        let a = mdma_index.spots[loc as usize];
-        let b = mdma_index.spots[(loc + len - 1) as usize];
+        let range = loc as usize .. (loc + len) as usize;
+        let a = mdma_index.spots[range.start];
+        let b = mdma_index.spots[range.end-1];
 
         if a == b && a != -1 {
             last_match = loc;
-            parsed_locs.push(loc);
+            for i in &mut mdma_index.spots[range] { *i = -1; }
         }
     }
+}
 
-    // Slice by word
-    for loc in parsed_locs {
-        for i in 0..len {
-            mdma_index.spots[(loc+i) as usize] = -1;
-        }
-    }
+pub fn split(best_match: &Match, mdma_index: &mut MdmaIndex) {
+    parse(best_match, mdma_index);
 
-    // Compute spots vector
+    // Compute spots vector branchless
     let mut spot = 0;
     let mut last = -1;
-    for i in 0..mdma_index.spots.len() {
-        if mdma_index.spots[i] != -1 {
-            if last == -1 {
-                mdma_index.spots[i] = spot;
-                spot += 1;
-            }
-            else {
-                mdma_index.spots[i] = last;
-            }
-        }
+    for i in &mut mdma_index.spots[..] {
+        let i_eq = (*i != -1) as i32;
+        let last_eq = (last == -1) as i32;
 
-        last = mdma_index.spots[i];
+        *i = i_eq * (last + last_eq * (spot - last));
+        spot += i_eq * last_eq;
+
+        last = *i;
     }
 }
 
