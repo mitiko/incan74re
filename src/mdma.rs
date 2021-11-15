@@ -24,11 +24,10 @@ impl Clone for Word {
 pub struct MdmaIndex<'a> {
     pub buf:   &'a Vec<u8>,
     pub sa:    &'a Vec<i32>,
-    pub lcp:   &'a Vec<i32>,
     pub spots: &'a mut Vec<i32>,
     pub model:      &'a mut [f64; 256],
     pub sym_counts: &'a mut [f64; 256],
-    pub n: &'a mut i32
+    pub n:          &'a mut i32
 }
 
 // TODO:
@@ -43,17 +42,17 @@ pub struct MdmaIndex<'a> {
 pub fn build_dictionary(buf: &Vec<u8>) -> Vec<Word> {
     // Build bwd_index
     let sa = &build_suffix_array(buf);
-    let lcp = &build_lcp_array(sa, buf);
     let model = &mut build_model(buf);
     let spots = &mut vec![0; buf.len()];
-    let mdma_index = &mut MdmaIndex { buf, sa, lcp, spots, model, sym_counts: &mut [0f64; 256], n: &mut (buf.len() as i32) };
+    let mdma_index = &mut MdmaIndex { buf, sa, spots, model, sym_counts: &mut [0f64; 256], n: &mut (buf.len() as i32) };
     let mut dict = vec![];
+    // match_finder::static_analyze(lcp_array);
 
     // Initialize the match-holding structure
-    let mut curr_matches = match_finder::generate(&lcp);
+    let mut curr_matches = Vec::with_capacity((mdma_index.buf.len() as f64 * 2.3) as usize);
+    match_finder::generate(mdma_index, &mut curr_matches);
     let mut matches = Vec::<Match>::with_capacity(curr_matches.len());
     println!("Matches vec holds: {} matches", curr_matches.len());
-
     loop {
         std::mem::swap(&mut matches, &mut curr_matches);
         curr_matches.clear();
@@ -74,7 +73,7 @@ pub fn build_dictionary(buf: &Vec<u8>) -> Vec<Word> {
         }
 
         if best_word.count == -1 { break; }
-        // best_word.print();
+        // best_word._print();
         dict.push(best_word.word.clone());
         entropy_ranking::split(&best_match, mdma_index);
         entropy_ranking::update_model(&best_word, mdma_index);
@@ -90,43 +89,6 @@ fn build_suffix_array(buf: &Vec<u8>) -> Vec<i32> {
     assert!(sa.len() == buf.len());
     println!("Build SA");
     return sa;
-}
-
-fn build_lcp_array(sa: &Vec<i32>, buf: &Vec<u8>) -> Vec<i32> {
-    let n = sa.len();
-    let mut lcp = vec![0; n];
-
-    let mut sa_inv = vec![0; n];
-    for i in 0..n {
-        sa_inv[sa[i] as usize] = i;
-    }
-
-    let mut k = 0;
-    for i in 0..n {
-        if sa_inv[i] == n - 1 {
-            k = 0;
-            continue;
-        }
-
-        let j = sa[sa_inv[i] + 1] as usize;
-        loop {
-            if i+k >= n || j+k >= n {
-                break;
-            }
-            if buf[i+k] != buf[j + k] {
-                break;
-            }
-            k += 1;
-        }
-
-        lcp[sa_inv[i]] = k as i32;
-        if k > 0 {
-            k -= 1;
-        }
-    }
-
-    println!("Built LCP");
-    return lcp;
 }
 
 fn build_model(buf: &Vec<u8>) -> [f64; 256] {

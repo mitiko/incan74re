@@ -1,3 +1,5 @@
+#![feature(core_intrinsics)]
+
 mod mdma;
 mod bindings;
 mod bit_operations;

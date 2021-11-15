@@ -9,9 +9,9 @@ pub struct RankedWord {
 }
 
 impl RankedWord {
-    // pub fn print(&self) {
-    //     println!("word -> ({}, {}); c={}, r={}", self.word.location, self.word.len, self.count, self.rank);
-    // }
+    pub fn _print(&self) {
+        println!("word -> ({}, {}); c={}, r={}", self.word.location, self.word.len, self.count, self.rank);
+    }
 
     pub fn empty() -> Self {
         Self {
@@ -27,7 +27,19 @@ impl Clone for RankedWord {
     }
 }
 
-// TODO: Add get_entropy
+trait FastLog2 {
+    fn fast_log2(&self) -> f64;
+}
+
+impl FastLog2 for f64 {
+    fn fast_log2(&self) -> f64 {
+        unsafe {
+            core::intrinsics::log2f64(*self)
+        }
+    }
+}
+
+// TODO: Add get_entropy?
 
 pub fn rank(m: &mut Match, mdma_index: &mut MdmaIndex<'_>) -> Option<RankedWord> {
     // From match_finder we know len >= 2 and sa_count >= 2
@@ -57,14 +69,14 @@ pub fn rank(m: &mut Match, mdma_index: &mut MdmaIndex<'_>) -> Option<RankedWord>
         let cx = mdma_index.model[sym_index];
         let cxw = cx - sym_count * count_prec;
         // TODO: Vectorize this
-        rank += cxw * cxw.log2() - cx * cx.log2();
+        rank += cxw * cxw.fast_log2() - cx * cx.fast_log2();
     }
 
     rank -= (8 * (len + 1)) as f64; // Dictionary overhead
     // TODO: Could also try to vectorize these 3*2 ops into just 2 ops
-    rank += count_prec * count_prec.log2();
-    rank -= n1 * n1.log2();
-    rank += n_prec * n_prec.log2();
+    rank += count_prec * count_prec.fast_log2();
+    rank -= n1 * n1.fast_log2();
+    rank += n_prec * n_prec.fast_log2();
 
     match rank > 0f64 {
         true => Some(RankedWord {
@@ -94,6 +106,7 @@ fn count_fast(m: &mut Match, mdma_index: &MdmaIndex) -> (i32, usize) {
         let b = mdma_index.spots[(*loc + len - 1) as usize];
 
         // Branchless counting
+        // TODO: Perhaps setting holes as different negative numbers would speed up this?
         let condition = (a == b && a != -1) as i32;
         count += condition;
         last_match = last_match + condition * (*loc - last_match);
@@ -160,11 +173,13 @@ pub fn split(best_match: &Match, mdma_index: &mut MdmaIndex) {
     // Compute spots vector branchless
     let mut spot = 0;
     let mut last = -1;
+    // TODO: Align the spots array to the suffix array using the inverseSA and lower L3 cache misses on ranking
     for i in &mut mdma_index.spots[..] {
         let i_eq = (*i != -1) as i32;
         let last_eq = (last == -1) as i32;
 
-        *i = i_eq * (last + last_eq * (spot - last));
+        // Stays -1, or either becomes same spot as last, or new spot
+        *i = -1 + i_eq * (last + last_eq * (spot - last) + 1);
         spot += i_eq * last_eq;
 
         last = *i;
