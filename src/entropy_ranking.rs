@@ -1,3 +1,5 @@
+use crate::fast_log2;
+
 use super::mdma::MdmaIndex;
 use super::match_finder::Match;
 use super::mdma::Word;
@@ -27,18 +29,6 @@ impl Clone for RankedWord {
     }
 }
 
-trait FastLog2 {
-    fn fast_log2(&self) -> f64;
-}
-
-impl FastLog2 for f64 {
-    fn fast_log2(&self) -> f64 {
-        unsafe {
-            core::intrinsics::log2f64(*self)
-        }
-    }
-}
-
 // TODO: Add get_entropy?
 
 pub fn rank(m: &mut Match, mdma_index: &mut MdmaIndex<'_>) -> Option<RankedWord> {
@@ -49,34 +39,56 @@ pub fn rank(m: &mut Match, mdma_index: &mut MdmaIndex<'_>) -> Option<RankedWord>
 
     let slice = &mdma_index.buf[loc..(loc + len)];
     for &sym in slice {
-        mdma_index.sym_counts[sym as usize] += 1f64;
+        mdma_index.sym_counts[sym as usize] += 1;
     }
 
     let mut rank = 0f64;
-    let count_prec = count as f64;
-    let n_prec = *mdma_index.n as f64;
-    let len_prec = len as f64;
-    let n1 = n_prec - count_prec * (len_prec - 1f64);
+    let n = *mdma_index.n;
+    let n1 = n - count * (len as i32 - 1);
 
-    for sym in slice {
-        let sym_index = *sym as usize;
-        let sym_count = mdma_index.sym_counts[sym_index];
-        // TODO: Try to find a branchless solution to this?
-        // Maybe zero out some stuff, would that be faster? (cx:=0, cxw:=0 would make rank_d=0)
-        if sym_count == 0f64 { continue; }
-        mdma_index.sym_counts[sym_index] = 0f64;
+    let mut rank_a = 0.0;
+    let mut rank_b = 0.0;
+    // Unrolled loop
+    for i in 0..(slice.len()/2) {
+        let idx = i << 1;
+        let sym_index_a = slice[idx] as usize;
+        let sym_index_b = slice[idx+1] as usize;
+
+        let cx_a = mdma_index.model[sym_index_a];
+        let cx_b = mdma_index.model[sym_index_b];
+        let cxw_a = cx_a - mdma_index.sym_counts[sym_index_a] * count;
+        let cxw_b = cx_b - mdma_index.sym_counts[sym_index_b] * count;
+
+        // rank_a += (cxw_a * cxw_a.log2()) - (cx_a * cx_a.log2());
+        // rank_b += (cxw_b * cxw_b.log2()) - (cx_b * cx_b.log2());
+        let res = fast_log2::entropy(cx_a, cxw_a, cx_b, cxw_b, mdma_index.g_log2);
+        rank_a += res[1] - res[0];
+        rank_b += res[3] - res[2];
+        mdma_index.sym_counts[sym_index_a] = 0;
+        mdma_index.sym_counts[sym_index_b] = 0;
+    }
+    rank += rank_a + rank_b;
+
+    if slice.len() & 1 != 0 {
+        let sym_index = slice[slice.len() - 1] as usize;
 
         let cx = mdma_index.model[sym_index];
-        let cxw = cx - sym_count * count_prec;
-        // TODO: Vectorize this
-        rank += cxw * cxw.fast_log2() - cx * cx.fast_log2();
+        let cxw = cx - mdma_index.sym_counts[sym_index] * count;
+
+        // rank += cxw * cxw.log2() - cx * cx.log2();
+        let res = fast_log2::entropy(cx, cxw, 0, 0, mdma_index.g_log2);
+        rank += res[1] - res[0];
+        mdma_index.sym_counts[sym_index] = 0;
     }
 
-    rank -= (8 * (len + 1)) as f64; // Dictionary overhead
-    // TODO: Could also try to vectorize these 3*2 ops into just 2 ops
-    rank += count_prec * count_prec.fast_log2();
-    rank -= n1 * n1.fast_log2();
-    rank += n_prec * n_prec.fast_log2();
+    // let a = count * count.log2();
+    // let b = n * n.log2();
+    // let c = n1 * n1.log2();
+    let res = fast_log2::entropy(count, n, n1, 0, mdma_index.g_log2);
+    let a = res[0] + res[1];
+    let b = (8 * (len + 1)) as f64; /* dictionary overhead */
+    let c = res[2] + b;
+    rank += a - c;
 
     match rank > 0f64 {
         true => Some(RankedWord {
@@ -188,7 +200,7 @@ pub fn split(best_match: &Match, mdma_index: &mut MdmaIndex) {
 
 pub fn update_model(ranked_word: &RankedWord, mdma_index: &mut MdmaIndex) {
     let slice = &mdma_index.buf[ranked_word.word.get_range()];
-    let count = ranked_word.count as f64;
+    let count = ranked_word.count;
     for &sym in slice {
         mdma_index.model[sym as usize] -= count;
     }

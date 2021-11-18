@@ -1,11 +1,10 @@
-#![feature(core_intrinsics)]
-
 mod mdma;
 mod bindings;
 mod bit_operations;
 mod file_operations;
 mod match_finder;
 mod entropy_ranking;
+mod fast_log2;
 
 fn main() -> std::io::Result<()> {
     let file_name = "../rrans/data/book1";

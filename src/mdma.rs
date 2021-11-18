@@ -3,6 +3,7 @@ use super::match_finder;
 use super::entropy_ranking;
 use super::entropy_ranking::RankedWord;
 use super::match_finder::Match;
+use super::fast_log2::Log2Globals;
 
 pub struct Word {
     pub location: usize,
@@ -25,9 +26,10 @@ pub struct MdmaIndex<'a> {
     pub buf:   &'a Vec<u8>,
     pub sa:    &'a Vec<i32>,
     pub spots: &'a mut Vec<i32>,
-    pub model:      &'a mut [f64; 256],
-    pub sym_counts: &'a mut [f64; 256],
-    pub n:          &'a mut i32
+    pub model:      &'a mut [i32; 256],
+    pub sym_counts: &'a mut [i32; 256],
+    pub n:          &'a mut i32,
+    pub g_log2: &'a Log2Globals
 }
 
 // TODO:
@@ -44,7 +46,7 @@ pub fn build_dictionary(buf: &Vec<u8>) -> Vec<Word> {
     let sa = &build_suffix_array(buf);
     let model = &mut build_model(buf);
     let spots = &mut vec![0; buf.len()];
-    let mdma_index = &mut MdmaIndex { buf, sa, spots, model, sym_counts: &mut [0f64; 256], n: &mut (buf.len() as i32) };
+    let mdma_index = &mut MdmaIndex { buf, sa, spots, model, sym_counts: &mut [0; 256], n: &mut (buf.len() as i32), g_log2: &Log2Globals::new() };
     let mut dict = vec![];
     // match_finder::static_analyze(lcp_array);
 
@@ -73,7 +75,7 @@ pub fn build_dictionary(buf: &Vec<u8>) -> Vec<Word> {
         }
 
         if best_word.count == -1 { break; }
-        // best_word._print();
+        best_word._print();
         dict.push(best_word.word.clone());
         entropy_ranking::split(&best_match, mdma_index);
         entropy_ranking::update_model(&best_word, mdma_index);
@@ -91,11 +93,11 @@ fn build_suffix_array(buf: &Vec<u8>) -> Vec<i32> {
     return sa;
 }
 
-fn build_model(buf: &Vec<u8>) -> [f64; 256] {
-    let mut model = [0f64; 256];
+fn build_model(buf: &Vec<u8>) -> [i32; 256] {
+    let mut model = [0; 256];
 
     for &sym in buf {
-        model[sym as usize] += 1f64;
+        model[sym as usize] += 1;
     }
 
     model
