@@ -121,8 +121,8 @@ impl Match {
         self.sa_count_len >> 8
     }
 
-    pub fn get_len(&self) -> u32 {
-        self.sa_count_len & 0xff
+    pub fn get_len(&self) -> i32 {
+        (self.sa_count_len & 0xff) as i32
     }
 }
 

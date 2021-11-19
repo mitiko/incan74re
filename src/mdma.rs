@@ -43,7 +43,7 @@ pub fn build_dictionary(buf: &Vec<u8>) -> Vec<Word> {
     // Build bwd_index
     let sa = &build_suffix_array(buf);
     let model = &mut build_model(buf);
-    let spots = &mut vec![0; buf.len()];
+    let spots = &mut build_spots_array(buf.len());
     let mdma_index = &mut MdmaIndex { buf, sa, spots, model, sym_counts: &mut [0f64; 256], n: &mut (buf.len() as i32) };
     let mut dict = vec![];
     // match_finder::static_analyze(lcp_array);
@@ -73,7 +73,7 @@ pub fn build_dictionary(buf: &Vec<u8>) -> Vec<Word> {
         }
 
         if best_word.count == -1 { break; }
-        best_word._print();
+        // best_word._print();
         dict.push(best_word.word.clone());
         entropy_ranking::split(&best_match, mdma_index);
         entropy_ranking::update_model(&best_word, mdma_index);
@@ -89,6 +89,16 @@ fn build_suffix_array(buf: &Vec<u8>) -> Vec<i32> {
     assert!(sa.len() == buf.len());
     println!("Build SA");
     return sa;
+}
+
+fn build_spots_array(len: usize) -> Vec<i32> {
+    let mut vec = vec![0; len];
+    let max = len - 1;
+    // Does this get unrolled?
+    for i in 0..len {
+        vec[i] = (max - i) as i32;
+    }
+    return vec;
 }
 
 fn build_model(buf: &Vec<u8>) -> [f64; 256] {

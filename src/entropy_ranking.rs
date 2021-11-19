@@ -75,6 +75,7 @@ pub fn rank(m: &mut Match, mdma_index: &mut MdmaIndex<'_>) -> Option<RankedWord>
 }
 
 // Must guarantee location is an unused location
+// Does it tho? -> It does not, indeed
 fn count(m: &mut Match, mdma_index: &MdmaIndex) -> (i32, usize) {
     match m.self_ref {
         false => count_fast(m, mdma_index),
@@ -83,23 +84,16 @@ fn count(m: &mut Match, mdma_index: &MdmaIndex) -> (i32, usize) {
 }
 
 fn count_fast(m: &mut Match, mdma_index: &MdmaIndex) -> (i32, usize) {
+    let effective_len = m.get_len() - 1;
     let range = m.get_range();
-    let len = m.get_len() as i32;
     let mut count = 0;
-    let mut last_match = - len;
 
+    let last_match = mdma_index.sa[range.start] as usize;
     for loc in &mdma_index.sa[range] {
-        let a = mdma_index.spots[*loc as usize];
-        let b = mdma_index.spots[(*loc + len - 1) as usize];
-
-        // Branchless counting
-        // TODO: Perhaps setting holes as different negative numbers would speed up this?
-        let condition = (a == b && a != -1) as i32;
-        count += condition;
-        last_match = last_match + condition * (*loc - last_match);
+        count += (mdma_index.spots[*loc as usize] >= effective_len) as i32;
     }
 
-    (count, last_match as usize)
+    (count, last_match)
 }
 
 fn count_slow(m: &mut Match, mdma_index: &MdmaIndex) -> (i32, usize) {
@@ -108,20 +102,20 @@ fn count_slow(m: &mut Match, mdma_index: &MdmaIndex) -> (i32, usize) {
     locations.copy_from_slice(&mdma_index.sa[range]);
     locations.sort_unstable();
 
-    let len = m.get_len() as i32;
+    let effective_len = m.get_len() - 1;
     let mut count = 0;
     let mut flag = false;
-    let mut last_match = - len;
+    let mut last_match = - m.get_len();
 
     for loc in locations {
-        if loc < last_match + len { flag = true; continue; }
-
+        // TODO: Optimize branching?
+        if loc <= last_match + effective_len { flag = true; continue; }
         let a = mdma_index.spots[loc as usize];
-        let b = mdma_index.spots[(loc + len - 1) as usize];
-        let condition = (a == b && a != -1) as i32;
 
-        count += condition;
-        last_match = last_match + condition * (loc - last_match);
+        if a >= effective_len {
+            count += 1;
+            last_match = loc;
+        }
     }
 
     m.self_ref = flag;
@@ -136,18 +130,18 @@ pub fn parse(best_match: &Match, mdma_index: &mut MdmaIndex) {
     locations.sort_unstable();
 
     // Initialize parsing variables
-    let len = best_match.get_len() as i32;
+    let len = best_match.get_len();
+    let effective_len = len - 1;
     let mut last_match = - len;
 
     // Parse
     for loc in locations {
-        if loc < last_match + len { continue; }
+        if loc <= last_match + effective_len { continue; }
 
-        let range = loc as usize .. (loc + len) as usize;
-        let a = mdma_index.spots[range.start];
-        let b = mdma_index.spots[range.end-1];
+        let range = loc as usize ..= (loc + effective_len) as usize;
+        let a = mdma_index.spots[loc as usize];
 
-        if a == b && a != -1 {
+        if a >= effective_len {
             last_match = loc;
             for i in &mut mdma_index.spots[range] { *i = -1; }
         }
@@ -157,19 +151,15 @@ pub fn parse(best_match: &Match, mdma_index: &mut MdmaIndex) {
 pub fn split(best_match: &Match, mdma_index: &mut MdmaIndex) {
     parse(best_match, mdma_index);
 
-    // Compute spots vector branchless
-    let mut spot = 0;
     let mut last = -1;
     // TODO: Align the spots array to the suffix array using the inverseSA and lower L3 cache misses on ranking
-    for i in &mut mdma_index.spots[..] {
-        let i_eq = (*i != -1) as i32;
-        let last_eq = (last == -1) as i32;
-
-        // Stays -1, or either becomes same spot as last, or new spot
-        *i = -1 + i_eq * (last + last_eq * (spot - last) + 1);
-        spot += i_eq * last_eq;
-
-        last = *i;
+    // TODO: We can optimize this directly in the parsing as well!
+    // TODO: Unroll this?
+    // This is a crucial loop, even tho it gets executed only once per iteration, it's O(n)
+    for elem in mdma_index.spots.iter_mut().rev() {
+        let eq = (*elem != -1) as i32;
+        last = -1 + eq * (last + 2);
+        *elem = last;
     }
 }
 

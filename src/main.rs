@@ -11,6 +11,7 @@ fn main() -> std::io::Result<()> {
     let buf = file_operations::read_file_into_buffer(file_name)?;
     let _dict = mdma::build_dictionary(&buf);
     let _word = &_dict[0];
+    dbg!(_dict.len());
     dbg!(_word.location);
     dbg!(_word.len);
 
