@@ -31,7 +31,7 @@ impl Clone for RankedWord {
 
 pub fn rank(m: &mut Match, mdma_index: &mut MdmaIndex<'_>) -> Option<RankedWord> {
     // From match_finder we know len >= 2 and sa_count >= 2
-    let len = m.get_len() as usize;
+    let len = m.len as usize;
     let (count, loc) = count(m, mdma_index);
     if count < 2 { return None; }
 
@@ -84,16 +84,18 @@ fn count(m: &mut Match, mdma_index: &MdmaIndex) -> (i32, usize) {
 }
 
 fn count_fast(m: &mut Match, mdma_index: &MdmaIndex) -> (i32, usize) {
-    let effective_len = m.get_len() - 1;
-    let range = m.get_range();
     let mut count = 0;
+    let effective_len = m.len as i32 - 1;
 
-    let last_match = mdma_index.sa[range.start] as usize;
+    let last_match = mdma_index.sa[m.sa_index as usize];
+    let range = m.get_range();
+
+    // TODO: Try unroll?
     for loc in &mdma_index.sa[range] {
         count += (mdma_index.spots[*loc as usize] >= effective_len) as i32;
     }
 
-    (count, last_match)
+    (count, last_match as usize)
 }
 
 fn count_slow(m: &mut Match, mdma_index: &MdmaIndex) -> (i32, usize) {
@@ -102,10 +104,10 @@ fn count_slow(m: &mut Match, mdma_index: &MdmaIndex) -> (i32, usize) {
     locations.copy_from_slice(&mdma_index.sa[range]);
     locations.sort_unstable();
 
-    let effective_len = m.get_len() - 1;
+    let effective_len = m.len as i32 - 1;
     let mut count = 0;
     let mut flag = false;
-    let mut last_match = - m.get_len();
+    let mut last_match = - (m.len as i32);
 
     for loc in locations {
         // TODO: Optimize branching?
@@ -130,7 +132,7 @@ pub fn parse(best_match: &Match, mdma_index: &mut MdmaIndex) {
     locations.sort_unstable();
 
     // Initialize parsing variables
-    let len = best_match.get_len();
+    let len = best_match.len as i32;
     let effective_len = len - 1;
     let mut last_match = - len;
 

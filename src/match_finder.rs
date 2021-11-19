@@ -1,6 +1,8 @@
 use super::mdma::MdmaIndex;
 
 pub fn generate(mdma_index: &MdmaIndex, matches: &mut Vec<Match>) {
+    println!("Size of match_gen is: {}", std::mem::size_of::<MatchGen>());
+    println!("Size of match is: {}", std::mem::size_of::<Match>());
     let lcp_array = build_lcp_array(mdma_index.sa, mdma_index.buf);
     let mut stack = Vec::with_capacity(256);
 
@@ -69,6 +71,14 @@ pub fn build_lcp_array(sa: &Vec<i32>, buf: &Vec<u8>) -> Vec<i32> {
     return lcp;
 }
 
+// TODO: Maybe find a way to align this?
+// [ ] Check how big the stack can get
+// [ ] Check hwo big the stack can get with len < 256
+// [ ] See if we can group multiple matches together?
+// Elaborating on that last one: When we have matches with the same count and same sa_index, but different lenghts,
+// maybe we don't need to rank all of them (just the longest one?)
+// Even if we can't get around ranking all of them, perhaps we can at least store them in stack more efficiently?
+// ---------------------------
 // MatchGen is a more lightweight struct that only holds the len and sa_index
 // It's used to  minimize the allocations of the match_finder
 // Since we always compute the sa_count field, we can not store it and save a couple of bytes
@@ -76,7 +86,8 @@ pub fn build_lcp_array(sa: &Vec<i32>, buf: &Vec<u8>) -> Vec<i32> {
 // while storing in match to utilize a bigger range [2-257] if we needed to
 // (but I think the bigger range can't compensate for the extra complexity per access)
 // - same with sa_count
-#[repr(packed(1))]
+
+// #[repr(packed(1))]
 struct MatchGen {
     sa_index: u32,
     len: u8
@@ -86,53 +97,35 @@ impl MatchGen {
     fn new(sa_index: usize, len: u8) -> Self { Self { sa_index: sa_index as u32, len } }
 }
 
-// Instead of 3*u32=12bytes for sa_index, sa_count, len we can do with just 8
-// The trick is to share one u32 for len and sa_count
-// We need this as a memory optimization but it imposes a limit on the sa_count and len
-// len is (low) 8 bits and sa_count is (high) 24 bits
-// This seems to be enough for regular (up to 2GB) text files
-// Matches with len > 256 bytes can be
-
-// TODO: Make the sa_count_len also contain 1 bit for self_ref -> it can be the last bit for fast access (with mask)
-#[repr(packed(1))]
 pub struct Match {
     pub self_ref: bool,
     pub sa_index: u32,
-    sa_count_len: u32
+    pub sa_count: u32,
+    pub len:      u8
 }
 
 impl Match {
     fn new(sa_count: u32, mg: MatchGen) -> Self {
-        // Branchless clamp to [0-16777215] (u24 range)
-        let sa_count_clamped = sa_count + (sa_count > 0xff_ff_ff) as u32 * (0xff_ff_ff - sa_count);
-        let sa_count_len = (sa_count_clamped << 8) | mg.len as u32;
-        Self { sa_index: mg.sa_index, sa_count_len, self_ref: true }
+        Self { sa_index: mg.sa_index, len: mg.len, sa_count, self_ref: true }
     }
 
     pub fn empty() -> Self {
-        Self { sa_index: 0, sa_count_len: 0, self_ref: true }
+        Self { sa_index: 0, sa_count: 0, len: 0, self_ref: true }
     }
 
     pub fn get_range(&self) -> std::ops::Range<usize> {
-        return self.sa_index as usize .. (self.sa_index + self.get_count()) as usize;
-    }
-
-    pub fn get_count(&self) -> u32 {
-        self.sa_count_len >> 8
-    }
-
-    pub fn get_len(&self) -> i32 {
-        (self.sa_count_len & 0xff) as i32
+        return self.sa_index as usize .. (self.sa_index + self.sa_count) as usize;
     }
 }
 
 impl Clone for Match {
     fn clone(&self) -> Self {
-        Self { sa_index: self.sa_index, sa_count_len: self.sa_count_len, self_ref: self.self_ref }
+        Self { sa_index: self.sa_index, sa_count: self.sa_count, len: self.len, self_ref: self.self_ref }
     }
 }
 
-pub fn _static_analyze(lcp_array: &Vec<i32>) {
+pub fn _static_analyze(mdma_index: &MdmaIndex) {
+    let lcp_array = build_lcp_array(mdma_index.sa, mdma_index.buf);
     let mut stack = Vec::with_capacity(256);
     let mut max_sa_count = 0;
     let mut max_len = 0;

@@ -46,7 +46,7 @@ pub fn build_dictionary(buf: &Vec<u8>) -> Vec<Word> {
     let spots = &mut build_spots_array(buf.len());
     let mdma_index = &mut MdmaIndex { buf, sa, spots, model, sym_counts: &mut [0f64; 256], n: &mut (buf.len() as i32) };
     let mut dict = vec![];
-    // match_finder::static_analyze(lcp_array);
+    // match_finder::_static_analyze(mdma_index);
 
     // Initialize the match-holding structure
     let mut curr_matches = Vec::with_capacity((mdma_index.buf.len() as f64 * 2.3) as usize);
