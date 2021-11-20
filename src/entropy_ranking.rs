@@ -110,11 +110,11 @@ fn count_slow(m: &mut Match, mdma_index: &MdmaIndex) -> (i32, usize) {
     let mut last_match = - (m.len as i32);
 
     for loc in locations {
-        // TODO: Optimize branching?
+        // TODO: Optimize branching? -> there're no branches in the loop,
+        // but the compiler can't (won't) unroll because of the dependency on last_match
         if loc <= last_match + effective_len { flag = true; continue; }
-        let a = mdma_index.spots[loc as usize];
 
-        if a >= effective_len {
+        if mdma_index.spots[loc as usize] >= effective_len {
             count += 1;
             last_match = loc;
         }
@@ -124,7 +124,12 @@ fn count_slow(m: &mut Match, mdma_index: &MdmaIndex) -> (i32, usize) {
     (count, last_match as usize)
 }
 
-pub fn parse(best_match: &Match, mdma_index: &mut MdmaIndex) {
+// TODO: Align the spots array to the suffix array using the inverseSA and lower L3 cache misses on ranking
+// This is a crucial loop, even tho it gets executed only once per iteration, it's O(n)
+// Note that we get a small speedup in doing parsing and spots reseting together because
+// 1) It's only O(n), we're not doing 2 passes
+// 2) We're doing them in different directions -> gives us an exra speedup
+pub fn split(best_match: &Match, mdma_index: &mut MdmaIndex) {
     // Find word from SA
     let sa_range = best_match.get_range();
     let mut locations = vec![0; sa_range.len()];
@@ -132,36 +137,26 @@ pub fn parse(best_match: &Match, mdma_index: &mut MdmaIndex) {
     locations.sort_unstable();
 
     // Initialize parsing variables
-    let len = best_match.len as i32;
-    let effective_len = len - 1;
-    let mut last_match = - len;
+    let effective_len = best_match.len as i32 - 1;
+    let mut last_match = 0 - best_match.len as i32;
 
     // Parse
     for loc in locations {
         if loc <= last_match + effective_len { continue; }
-
         let range = loc as usize ..= (loc + effective_len) as usize;
-        let a = mdma_index.spots[loc as usize];
 
-        if a >= effective_len {
+        if mdma_index.spots[loc as usize] >= effective_len {
             last_match = loc;
-            for i in &mut mdma_index.spots[range] { *i = -1; }
+            for x in range.rev() { mdma_index.spots[x] = -1; }
+
+            let mut idx = loc as usize;
+            let mut last = -1;
+            while idx > 0 {
+                idx -= 1; last += 1;
+                if mdma_index.spots[idx] == -1 { break; }
+                mdma_index.spots[idx] = last;
+            }
         }
-    }
-}
-
-pub fn split(best_match: &Match, mdma_index: &mut MdmaIndex) {
-    parse(best_match, mdma_index);
-
-    let mut last = -1;
-    // TODO: Align the spots array to the suffix array using the inverseSA and lower L3 cache misses on ranking
-    // TODO: We can optimize this directly in the parsing as well!
-    // TODO: Unroll this?
-    // This is a crucial loop, even tho it gets executed only once per iteration, it's O(n)
-    for elem in mdma_index.spots.iter_mut().rev() {
-        let eq = (*elem != -1) as i32;
-        last = -1 + eq * (last + 2);
-        *elem = last;
     }
 }
 
