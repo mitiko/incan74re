@@ -1,14 +1,16 @@
-use super::mdma::MdmaIndex;
+use std::time::Instant;
 
+use crate::mdma::MdmaIndex;
+
+// TODO: Use a range based MatchGen
 pub fn generate(mdma_index: &MdmaIndex, matches: &mut Vec<Match>) {
-    println!("Size of match_gen is: {}", std::mem::size_of::<MatchGen>());
-    println!("Size of match is: {}", std::mem::size_of::<Match>());
-    let lcp_array = build_lcp_array(mdma_index.sa, mdma_index.buf);
+    let lcp_array = build_lcp_array(&mdma_index.sa, &mdma_index.buf);
+    let timer = Instant::now();
     let mut stack = Vec::with_capacity(256);
 
     for index in 0..lcp_array.len() {
         let lcp_real = lcp_array[index];
-        // todo: optimize this statement
+        // TODO: optimize this statement
         // Branchless clamp to [0-255] (u8 range)
         let lcp = lcp_real + (lcp_real > 255) as i32 * (255 - lcp_real);
         if stack.is_empty() {
@@ -32,9 +34,11 @@ pub fn generate(mdma_index: &MdmaIndex, matches: &mut Vec<Match>) {
     }
 
     assert!(stack.is_empty());
+    println!("Generated matches in: {:?}", timer.elapsed());
 }
 
 pub fn build_lcp_array(sa: &Vec<i32>, buf: &Vec<u8>) -> Vec<i32> {
+    let timer = Instant::now();
     let n = sa.len();
     let mut lcp = vec![0; n];
 
@@ -67,7 +71,7 @@ pub fn build_lcp_array(sa: &Vec<i32>, buf: &Vec<u8>) -> Vec<i32> {
         }
     }
 
-    println!("Built LCP");
+    println!("Built LCP in {:?}", timer.elapsed());
     return lcp;
 }
 
@@ -125,7 +129,7 @@ impl Clone for Match {
 }
 
 pub fn _static_analyze(mdma_index: &MdmaIndex) {
-    let lcp_array = build_lcp_array(mdma_index.sa, mdma_index.buf);
+    let lcp_array = build_lcp_array(&mdma_index.sa, &mdma_index.buf);
     let mut stack = Vec::with_capacity(256);
     let mut max_sa_count = 0;
     let mut max_len = 0;

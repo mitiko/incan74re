@@ -1,33 +1,19 @@
-use super::bindings;
-use super::match_finder;
-use super::entropy_ranking;
-use super::entropy_ranking::RankedWord;
-use super::match_finder::Match;
+use std::time::Instant;
 
-pub struct Word {
-    pub location: usize,
-    pub len: usize
-}
+use crate::bindings;
+use crate::match_finder;
+use crate::entropy_ranking;
+use crate::entropy_ranking::RankedWord;
+use crate::match_finder::Match;
+use crate::splitting;
 
-impl Word {
-    pub fn get_range(&self) -> std::ops::Range<usize> {
-        self.location .. (self.location + self.len)
-    }
-}
-
-impl Clone for Word {
-    fn clone(&self) -> Self {
-        Self { location: self.location.clone(), len: self.len.clone() }
-    }
-}
-
-pub struct MdmaIndex<'a> {
-    pub buf:   &'a Vec<u8>,
-    pub sa:    &'a Vec<i32>,
-    pub spots: &'a mut Vec<i32>,
-    pub model:      &'a mut [f64; 256],
-    pub sym_counts: &'a mut [f64; 256],
-    pub n:          &'a mut i32
+pub struct MdmaIndex {
+    pub buf:        Vec<u8>,
+    pub sa:         Vec<i32>,
+    pub spots:      Vec<i32>,
+    pub model:      [f64; 256],
+    pub sym_counts: [f64; 256],
+    pub n:          i32
 }
 
 // TODO:
@@ -39,12 +25,7 @@ pub struct MdmaIndex<'a> {
 // [X] Entropy ranking function
 // [ ] Parser
 
-pub fn build_dictionary(buf: &Vec<u8>) -> Vec<Word> {
-    // Build bwd_index
-    let sa = &build_suffix_array(buf);
-    let model = &mut build_model(buf);
-    let spots = &mut build_spots_array(buf.len());
-    let mdma_index = &mut MdmaIndex { buf, sa, spots, model, sym_counts: &mut [0f64; 256], n: &mut (buf.len() as i32) };
+pub fn build_dictionary(mdma_index: &mut MdmaIndex) -> Vec<Word> {
     let mut dict = vec![];
     // match_finder::_static_analyze(mdma_index);
 
@@ -53,6 +34,7 @@ pub fn build_dictionary(buf: &Vec<u8>) -> Vec<Word> {
     match_finder::generate(mdma_index, &mut curr_matches);
     let mut matches = Vec::<Match>::with_capacity(curr_matches.len());
     println!("Matches vec holds: {} matches", curr_matches.len());
+
     loop {
         std::mem::swap(&mut matches, &mut curr_matches);
         curr_matches.clear();
@@ -75,19 +57,27 @@ pub fn build_dictionary(buf: &Vec<u8>) -> Vec<Word> {
         if best_word.count == -1 { break; }
         // best_word._print();
         dict.push(best_word.word.clone());
-        entropy_ranking::split(&best_match, mdma_index);
+        splitting::split(&best_match, mdma_index);
         entropy_ranking::update_model(&best_word, mdma_index);
     }
 
     return dict;
 }
 
+pub fn initialize(buf: Vec<u8>) -> MdmaIndex {
+    let sa = build_suffix_array(&buf);
+    let model = build_model(&buf);
+    let spots = build_spots_array(buf.len());
+    MdmaIndex { n: (buf.len() as i32), buf, sa, spots, model, sym_counts: [0f64; 256] }
+}
+
 fn build_suffix_array(buf: &Vec<u8>) -> Vec<i32> {
+    let timer = Instant::now();
     let mut sa = vec![0; buf.len()];
     let code = unsafe { bindings::libsais(buf.as_ptr(), sa.as_mut_ptr(), buf.len() as i32) };
     assert!(code == 0);
     assert!(sa.len() == buf.len());
-    println!("Build SA");
+    println!("Built SA in {:?}", timer.elapsed());
     return sa;
 }
 
@@ -109,4 +99,21 @@ fn build_model(buf: &Vec<u8>) -> [f64; 256] {
     }
 
     model
+}
+
+pub struct Word {
+    pub location: usize,
+    pub len: usize
+}
+
+impl Word {
+    pub fn get_range(&self) -> std::ops::Range<usize> {
+        self.location .. (self.location + self.len)
+    }
+}
+
+impl Clone for Word {
+    fn clone(&self) -> Self {
+        Self { location: self.location.clone(), len: self.len.clone() }
+    }
 }
