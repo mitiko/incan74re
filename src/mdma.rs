@@ -10,7 +10,7 @@ use crate::splitting;
 pub struct MdmaIndex {
     pub buf:        Vec<u8>,
     pub sa:         Vec<i32>,
-    pub spots:      Vec<i32>,
+    pub offsets:      Vec<i32>,
     pub model:      [f64; 256],
     pub sym_counts: [f64; 256],
     pub n:          i32
@@ -20,7 +20,7 @@ pub struct MdmaIndex {
 // [X] Build SA
 // [X] Build LCP
 // [X] Create generator for matchfinder
-// [X] Use a spots array as bitvector
+// [X] Use a spots array as bitvector -> renamed to offsets
 // [X] Add a model for entropy ranking
 // [X] Entropy ranking function
 // [ ] Parser
@@ -67,8 +67,8 @@ pub fn build_dictionary(mdma_index: &mut MdmaIndex) -> Vec<Word> {
 pub fn initialize(buf: Vec<u8>) -> MdmaIndex {
     let sa = build_suffix_array(&buf);
     let model = build_model(&buf);
-    let spots = build_spots_array(buf.len());
-    MdmaIndex { n: (buf.len() as i32), buf, sa, spots, model, sym_counts: [0f64; 256] }
+    let offsets = build_offsets_array(buf.len());
+    MdmaIndex { n: (buf.len() as i32), buf, sa, offsets, model, sym_counts: [0f64; 256] }
 }
 
 fn build_suffix_array(buf: &Vec<u8>) -> Vec<i32> {
@@ -81,7 +81,7 @@ fn build_suffix_array(buf: &Vec<u8>) -> Vec<i32> {
     return sa;
 }
 
-fn build_spots_array(len: usize) -> Vec<i32> {
+fn build_offsets_array(len: usize) -> Vec<i32> {
     let mut vec = vec![0; len];
     let max = len - 1;
     // Does this get unrolled?

@@ -17,7 +17,7 @@ fn count_fast(m: &mut Match, mdma_index: &MdmaIndex) -> (i32, usize) {
 
     // TODO: Try unroll?
     for loc in &mdma_index.sa[range] {
-        count += (mdma_index.spots[*loc as usize] >= effective_len) as i32;
+        count += (mdma_index.offsets[*loc as usize] >= effective_len) as i32;
     }
 
     (count, last_match as usize)
@@ -39,7 +39,7 @@ fn count_slow(m: &mut Match, mdma_index: &MdmaIndex) -> (i32, usize) {
         // but the compiler can't (won't) unroll because of the dependency on last_match
         if loc <= last_match + effective_len { flag = true; continue; }
 
-        if mdma_index.spots[loc as usize] >= effective_len {
+        if mdma_index.offsets[loc as usize] >= effective_len {
             count += 1;
             last_match = loc;
         }
