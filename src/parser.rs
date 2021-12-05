@@ -15,7 +15,7 @@ pub fn encode_dict(dict: &Vec<Word>, mdma_index: &MdmaIndex, file_name: &str) {
 
     let buf: Vec<u8> = dict.iter()
         .map(|word| {
-            let mut data = vec![0u8; word.len + 1];
+            let mut data = vec![0u8; word.len as usize + 1];
             data[1..].copy_from_slice(&mdma_index.buf[word.get_range()]);
             data[0] = word.len as u8;
             return data;
@@ -25,4 +25,8 @@ pub fn encode_dict(dict: &Vec<Word>, mdma_index: &MdmaIndex, file_name: &str) {
 
     writer.write_all(&buf).unwrap();
     writer.flush().unwrap();
+}
+
+pub fn _parse() {
+
 }

@@ -12,7 +12,7 @@ pub fn read_file_into_buffer(input_file_name: &str) -> std::io::Result<Vec<u8>> 
 }
 
 pub fn get_writer(output_file_name: &str) -> std::io::Result<BufWriter<File>> {
-    let _ = fs::remove_file(output_file_name);
+    let _ = fs::remove_file(output_file_name); // TODO: unnecessary?
     let file = File::create(output_file_name)?;
 
     return Ok(BufWriter::with_capacity(1 << 16, file)); // 64 KiB buffer

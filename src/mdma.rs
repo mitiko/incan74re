@@ -3,14 +3,13 @@ use std::time::Instant;
 use crate::bindings;
 use crate::match_finder;
 use crate::entropy_ranking;
-use crate::entropy_ranking::RankedWord;
 use crate::match_finder::Match;
 use crate::splitting;
 
 pub struct MdmaIndex {
     pub buf:        Vec<u8>,
     pub sa:         Vec<i32>,
-    pub offsets:      Vec<i32>,
+    pub offsets:    Vec<i32>,
     pub model:      [f64; 256],
     pub sym_counts: [f64; 256],
     pub n:          i32
@@ -26,7 +25,7 @@ pub struct MdmaIndex {
 // [ ] Parser
 
 pub fn build_dictionary(mdma_index: &mut MdmaIndex) -> Vec<Word> {
-    let mut dict = vec![];
+    let mut dict = Vec::with_capacity(128);
     // match_finder::_static_analyze(mdma_index);
 
     // Initialize the match-holding structure
@@ -39,25 +38,21 @@ pub fn build_dictionary(mdma_index: &mut MdmaIndex) -> Vec<Word> {
         std::mem::swap(&mut matches, &mut curr_matches);
         curr_matches.clear();
         curr_matches.shrink_to(matches.len());
-        let mut best_match = Match::empty();
-        let mut best_word = RankedWord::empty();
 
+        let mut best_word = Word::empty();
         if matches.is_empty() { break; }
 
         for m in &mut matches {
             if let Some(ranked_word) = entropy_ranking::rank(m, mdma_index) {
                 curr_matches.push(m.clone());
-                if ranked_word.rank > best_word.rank {
-                    best_word = ranked_word.clone();
-                    best_match = m.clone();
-                }
+                if ranked_word.rank > best_word.rank { best_word = ranked_word.clone(); }
             }
         }
 
         if best_word.count == -1 { break; }
         // best_word._print();
-        dict.push(best_word.word.clone());
-        splitting::split(&best_match, mdma_index);
+        dict.push(best_word.clone());
+        splitting::split(&best_word, mdma_index);
         entropy_ranking::update_model(&best_word, mdma_index);
     }
 
@@ -102,18 +97,37 @@ fn build_model(buf: &Vec<u8>) -> [f64; 256] {
 }
 
 pub struct Word {
-    pub location: usize,
-    pub len: usize
+    pub rank: f64,
+    pub location: u32,
+    pub sa_index: u32,
+    pub sa_count: u32,
+    pub count: i32,
+    pub len: i32,
 }
 
 impl Word {
+    pub fn _print(&self) {
+        println!("word -> ({}, {}); c={}, r={}", self.location, self.len, self.count, self.rank);
+    }
+
     pub fn get_range(&self) -> std::ops::Range<usize> {
-        self.location .. (self.location + self.len)
+        (self.location as usize)..(self.location as usize + self.len as usize)
+    }
+
+    pub fn get_sa_range(&self) -> std::ops::Range<usize> {
+        (self.sa_index as usize)..(self.sa_index as usize + self.sa_count as usize)
+    }
+
+    pub fn empty() -> Self {
+        Self {
+            location: 0, sa_index: 0, sa_count: 0, count: -1, len: -1, rank: 0f64
+        }
     }
 }
 
 impl Clone for Word {
     fn clone(&self) -> Self {
-        Self { location: self.location.clone(), len: self.len.clone() }
+        Self { rank: self.rank.clone(), location: self.location.clone(), sa_index: self.sa_index.clone(), sa_count: self.sa_count.clone(), count: self.count.clone(), len: self.len.clone() }
     }
 }
+

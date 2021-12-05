@@ -113,10 +113,6 @@ impl Match {
         Self { sa_index: mg.sa_index, len: mg.len, sa_count, self_ref: true }
     }
 
-    pub fn empty() -> Self {
-        Self { sa_index: 0, sa_count: 0, len: 0, self_ref: true }
-    }
-
     pub fn get_range(&self) -> std::ops::Range<usize> {
         return self.sa_index as usize .. (self.sa_index + self.sa_count) as usize;
     }

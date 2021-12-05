@@ -1,21 +1,19 @@
-use crate::match_finder::Match;
-use crate::mdma::MdmaIndex;
+use crate::mdma::{MdmaIndex, Word};
 
 // TODO: Align the offsets array to the suffix array using the inverseSA and lower L3 cache misses on ranking
 // This is a crucial loop, even tho it gets executed only once per iteration, it's O(n)
 // Note that we get a small speedup in doing parsing and offsets reseting together because
 // 1) It's only O(n), we're not doing 2 passes
 // 2) We're doing them in different directions -> gives us an exra speedup
-pub fn split(best_match: &Match, mdma_index: &mut MdmaIndex) {
+pub fn split(word: &Word, mdma_index: &mut MdmaIndex) {
     // Find word from SA
-    let sa_range = best_match.get_range();
-    let mut locations = vec![0; sa_range.len()];
-    locations.copy_from_slice(&mdma_index.sa[sa_range]);
+    let mut locations = vec![0; word.sa_count as usize];
+    locations.copy_from_slice(&mdma_index.sa[word.get_sa_range()]);
     locations.sort_unstable();
 
     // Initialize parsing variables
-    let effective_len = best_match.len as i32 - 1;
-    let mut last_match = 0 - best_match.len as i32;
+    let effective_len = word.len - 1;
+    let mut last_match = 0 - word.len;
 
     // Parse
     for loc in locations {

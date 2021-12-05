@@ -1,11 +1,10 @@
 use crate::counting::count;
-use crate::mdma::MdmaIndex;
+use crate::mdma::{MdmaIndex, Word};
 use crate::match_finder::Match;
-use crate::mdma::Word;
 
 // TODO: Add get_entropy?
 
-pub fn rank(m: &mut Match, mdma_index: &mut MdmaIndex) -> Option<RankedWord> {
+pub fn rank(m: &mut Match, mdma_index: &mut MdmaIndex) -> Option<Word> {
     // From match_finder we know len >= 2 and sa_count >= 2
     let len = m.len as usize;
     let (count, loc) = count(m, mdma_index);
@@ -36,51 +35,27 @@ pub fn rank(m: &mut Match, mdma_index: &mut MdmaIndex) -> Option<RankedWord> {
         rank += cxw * cxw.log2() - cx * cx.log2();
     }
 
-    rank -= (8 * (len + 1)) as f64; // Dictionary overhead
+    rank -= 8f64 * (len_prec + 1f64); // Dictionary overhead
     rank += count_prec * count_prec.log2();
     rank -= n1 * n1.log2();
     rank += n_prec * n_prec.log2();
 
     match rank > 0f64 {
-        true => Some(RankedWord {
-            word: Word { location: loc, len },
+        true => Some(Word {
+            location: loc as u32, len: len as i32,
+            sa_index: m.sa_index, sa_count: m.sa_count,
             count, rank
         }),
         false => None
     }
 }
 
-pub fn update_model(ranked_word: &RankedWord, mdma_index: &mut MdmaIndex) {
-    let slice = &mdma_index.buf[ranked_word.word.get_range()];
-    let count = ranked_word.count as f64;
+pub fn update_model(word: &Word, mdma_index: &mut MdmaIndex) {
+    let slice = &mdma_index.buf[word.get_range()];
+    let count = word.count as f64;
     for &sym in slice {
         mdma_index.model[sym as usize] -= count;
     }
 
-    mdma_index.n -= ranked_word.count * (ranked_word.word.len - 1) as i32;
-}
-
-pub struct RankedWord {
-    pub word: Word,
-    pub count: i32,
-    pub rank: f64
-}
-
-impl RankedWord {
-    pub fn _print(&self) {
-        println!("word -> ({}, {}); c={}, r={}", self.word.location, self.word.len, self.count, self.rank);
-    }
-
-    pub fn empty() -> Self {
-        Self {
-            word: Word { location: 0, len: 0 },
-            count: -1, rank: 0f64
-        }
-    }
-}
-
-impl Clone for RankedWord {
-    fn clone(&self) -> Self {
-        Self { word: self.word.clone(), count: self.count, rank: self.rank }
-    }
+    mdma_index.n -= word.count * (word.len - 1);
 }
