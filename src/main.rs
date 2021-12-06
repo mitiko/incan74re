@@ -1,8 +1,7 @@
-use std::time::Instant;
+use std::{time::Instant, fs};
 
 mod mdma;
 mod bindings;
-mod file_operations;
 mod match_finder;
 mod entropy_ranking;
 mod counting;
@@ -11,14 +10,18 @@ mod parser;
 
 fn main() -> std::io::Result<()> {
     let file_name = "/data/calgary/book1";
+
     println!("Building dict for: {}", file_name);
     let timer = Instant::now();
-    let buf = file_operations::read_file_into_buffer(file_name)?;
+    let buf = fs::read(file_name)?;
     let mut index = mdma::initialize(buf);
     let dict = mdma::build_dictionary(&mut index);
     println!("Dict took: {:?}", timer.elapsed());
+
+    // TODO: Move encode dict and decode dict to a new file
     parser::encode_dict(&dict, &index, "dict.bin");
-    // TODO: Encode output as u16? (parsing)
+    parser::parse(&dict, &mut index, "parsed.bin");
+
     let first_word = &dict[0];
     dbg!(dict.len());
     dbg!(first_word.location);

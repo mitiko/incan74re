@@ -12,7 +12,8 @@ pub struct MdmaIndex {
     pub offsets:    Vec<i32>,
     pub model:      [f64; 256],
     pub sym_counts: [f64; 256],
-    pub n:          i32
+    pub n:          i32,
+    pub dict_len:   i32
 }
 
 // TODO:
@@ -63,7 +64,7 @@ pub fn initialize(buf: Vec<u8>) -> MdmaIndex {
     let sa = build_suffix_array(&buf);
     let model = build_model(&buf);
     let offsets = build_offsets_array(buf.len());
-    MdmaIndex { n: (buf.len() as i32), buf, sa, offsets, model, sym_counts: [0f64; 256] }
+    MdmaIndex { n: (buf.len() as i32), buf, sa, offsets, model, sym_counts: [0f64; 256], dict_len: 1 }
 }
 
 fn build_suffix_array(buf: &Vec<u8>) -> Vec<i32> {

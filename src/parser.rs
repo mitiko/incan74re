@@ -1,7 +1,9 @@
-use std::io::Write;
+use std::fs::File;
+use std::io::{Write, BufWriter};
 
-use crate::file_operations;
 use crate::mdma::{MdmaIndex, Word};
+
+const LITERAL_RANGE_START: usize = (u16::MAX - 256) as usize;
 
 // The format for the dictionary (of size n) (currently) is:
 // 2 bytes for dictionary.len() to encode n
@@ -10,7 +12,7 @@ use crate::mdma::{MdmaIndex, Word};
 // The len of each word can thus be better predicted using a model of its own
 // Sorting can also be done lexiographically
 pub fn encode_dict(dict: &Vec<Word>, mdma_index: &MdmaIndex, file_name: &str) {
-    let mut writer = file_operations::get_writer(file_name).unwrap();
+    let mut writer = BufWriter::new(File::create(file_name).unwrap());
     writer.write_all(&(dict.len() as u32).to_be_bytes()).unwrap();
 
     let buf: Vec<u8> = dict.iter()
@@ -27,6 +29,34 @@ pub fn encode_dict(dict: &Vec<Word>, mdma_index: &MdmaIndex, file_name: &str) {
     writer.flush().unwrap();
 }
 
-pub fn _parse() {
+// Creates a u16 array (big-endian order) of word indexes and writes it to a file
+// Indexes in the range [0 .. dict.len()] are dictionary words
+// Indexes in the range [u16::MAX-256 .. u16::MAX] are leftover uncovered raw literals
+// Words can be decoded as dict[index], while literals as (index - (u16::MAX-256))
+pub fn parse(dict: &Vec<Word>, mdma_index: &mut MdmaIndex, file_name: &str) {
+    assert!(dict.len() < LITERAL_RANGE_START);
+    let buf_capacity = 256;
+    let mut writer = BufWriter::new(File::create(file_name).unwrap());
+    let mut buf = Vec::with_capacity(buf_capacity);
 
+    for (loc, x) in &mut mdma_index.offsets.iter_mut().enumerate() {
+        if *x >= 0 { *x = - (1 + LITERAL_RANGE_START as i32 + mdma_index.buf[loc] as i32); }
+    }
+
+    let mut idx = 0;
+    while idx < mdma_index.offsets.len() {
+        // Parsed words are 1 index based
+        let word_idx = (-mdma_index.offsets[idx] - 1) as usize;
+        buf.extend((word_idx as u16).to_be_bytes());
+
+        if buf.len() >= buf_capacity {
+            writer.write_all(&buf).unwrap();
+            buf.clear();
+        }
+
+        idx += if word_idx < dict.len() { dict[word_idx].len as usize } else { 1 };
+    }
+
+    writer.write_all(&buf).unwrap();
+    writer.flush().unwrap();
 }

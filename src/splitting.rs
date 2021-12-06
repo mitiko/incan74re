@@ -11,25 +11,22 @@ pub fn split(word: &Word, mdma_index: &mut MdmaIndex) {
     locations.copy_from_slice(&mdma_index.sa[word.get_sa_range()]);
     locations.sort_unstable();
 
-    // Initialize parsing variables
     let effective_len = word.len - 1;
-    let mut last_match = 0 - word.len;
+    let replace_token = - mdma_index.dict_len; // used for parsing later
+    mdma_index.dict_len += 1;
 
-    // Parse
+    // Parse this word
     for loc in locations {
-        if loc <= last_match + effective_len { continue; }
-        let range = loc as usize ..= (loc + effective_len) as usize;
-
         if mdma_index.offsets[loc as usize] >= effective_len {
-            last_match = loc;
-            for x in range.rev() { mdma_index.offsets[x] = -1; }
+            let range = loc as usize ..= (loc + effective_len) as usize;
+            for x in range.rev() { mdma_index.offsets[x] = replace_token; }
 
             // TODO: Manually unroll?
             let mut idx = loc as usize;
             let mut last = -1;
             while idx > 0 {
                 idx -= 1; last += 1;
-                if mdma_index.offsets[idx] == -1 { break; }
+                if mdma_index.offsets[idx] < 0 { break; }
                 mdma_index.offsets[idx] = last;
             }
         }
