@@ -23,7 +23,7 @@ pub struct MdmaIndex {
 // [X] Use a spots array as bitvector -> renamed to offsets
 // [X] Add a model for entropy ranking
 // [X] Entropy ranking function
-// [ ] Parser
+// [X] Parser
 
 pub fn build_dictionary(mdma_index: &mut MdmaIndex) -> Vec<Word> {
     let mut dict = Vec::with_capacity(128);

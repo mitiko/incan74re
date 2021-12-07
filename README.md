@@ -44,3 +44,7 @@ The harder problem is generating relevant patterns and transmitting the relevant
 
 But yeah, a lot of opportunities.
 One specific idea I had for genetic data was to also match the complementary of oligonicleotides. After parsing, each such pattern is only an extra bit in the stream. And it can have it's own model..
+
+## Note
+
+This is a port from my [BWDPerf project](https://github.com/Mitiko/BWDPerf).
