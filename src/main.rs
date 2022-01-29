@@ -22,10 +22,11 @@ fn main() -> std::io::Result<()> {
     parser::encode_dict(&dict, &index, "dict.bin");
     parser::parse(&dict, &mut index, "parsed.bin");
 
-    let first_word = &dict[0];
     dbg!(dict.len());
-    dbg!(first_word.location);
-    dbg!(first_word.len);
+    if dict.len() > 0 {
+        dbg!(dict[0].location);
+        dbg!(dict[0].len);
+    }
 
     return Ok(());
 }

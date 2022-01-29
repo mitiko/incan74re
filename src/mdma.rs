@@ -97,6 +97,7 @@ fn build_model(buf: &Vec<u8>) -> [f64; 256] {
     model
 }
 
+#[derive(Clone)]
 pub struct Word {
     pub rank: f64,
     pub location: u32,
@@ -121,14 +122,7 @@ impl Word {
 
     pub fn empty() -> Self {
         Self {
-            location: 0, sa_index: 0, sa_count: 0, count: -1, len: -1, rank: 0f64
+            location: 0, sa_index: 0, sa_count: 0, count: -1, len: -1, rank: f64::MIN
         }
     }
 }
-
-impl Clone for Word {
-    fn clone(&self) -> Self {
-        Self { rank: self.rank.clone(), location: self.location.clone(), sa_index: self.sa_index.clone(), sa_count: self.sa_count.clone(), count: self.count.clone(), len: self.len.clone() }
-    }
-}
-

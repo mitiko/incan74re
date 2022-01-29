@@ -2,8 +2,12 @@
 name = "mdma"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+authors = ["Dimitar Rusev <mitikodev@gmail.com>"]
+description = "A dynamic scheme for global dictionary optimization."
+repository = "https://github.com/Mitiko/mdma/"
+license = "GPL-3.0"
+keywords = ["compression", "dictionary"]
+categories = ["compression"]
 
 [dependencies]
 
@@ -11,5 +15,6 @@ edition = "2021"
 cc = "1.0.71"
 
 [profile.release]
-debug = 1
-lto = "fat"
+debug = 1           # Add debug symbols for profiling
+lto = "fat"         # Enable Link Time Optimization
+# codegen-units = 1 # Reduce number of codegen units to increase optimizations.

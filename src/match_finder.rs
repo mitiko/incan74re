@@ -10,8 +10,9 @@ pub fn generate(mdma_index: &MdmaIndex, matches: &mut Vec<Match>) {
 
     for index in 0..lcp_array.len() {
         let lcp_real = lcp_array[index];
-        // TODO: optimize this statement
         // Branchless clamp to [0-255] (u8 range)
+        // TODO: Optimize this statement
+        // TODO: Use u16 for the lz matches
         let lcp = lcp_real + (lcp_real > 255) as i32 * (255 - lcp_real);
         if stack.is_empty() {
             for len in 2..=lcp {
@@ -101,6 +102,7 @@ impl MatchGen {
     fn new(sa_index: usize, len: u8) -> Self { Self { sa_index: sa_index as u32, len } }
 }
 
+#[derive(Clone)]
 pub struct Match {
     pub self_ref: bool,
     pub sa_index: u32,
@@ -115,12 +117,6 @@ impl Match {
 
     pub fn get_range(&self) -> std::ops::Range<usize> {
         return self.sa_index as usize .. (self.sa_index + self.sa_count) as usize;
-    }
-}
-
-impl Clone for Match {
-    fn clone(&self) -> Self {
-        Self { sa_index: self.sa_index, sa_count: self.sa_count, len: self.len, self_ref: self.self_ref }
     }
 }
 
