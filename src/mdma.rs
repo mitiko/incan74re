@@ -16,15 +16,6 @@ pub struct MdmaIndex {
     pub dict_len:   i32
 }
 
-// TODO:
-// [X] Build SA
-// [X] Build LCP
-// [X] Create generator for matchfinder
-// [X] Use a spots array as bitvector -> renamed to offsets
-// [X] Add a model for entropy ranking
-// [X] Entropy ranking function
-// [X] Parser
-
 pub fn build_dictionary(mdma_index: &mut MdmaIndex) -> Vec<Word> {
     let mut dict = Vec::with_capacity(128);
     // match_finder::_static_analyze(mdma_index);
@@ -33,7 +24,6 @@ pub fn build_dictionary(mdma_index: &mut MdmaIndex) -> Vec<Word> {
     let mut curr_matches = Vec::with_capacity((mdma_index.buf.len() as f64 * 2.3) as usize);
     match_finder::generate(mdma_index, &mut curr_matches);
     let mut matches = Vec::<Match>::with_capacity(curr_matches.len());
-    println!("Matches vec holds: {} matches", curr_matches.len());
 
     loop {
         std::mem::swap(&mut matches, &mut curr_matches);
@@ -94,7 +84,7 @@ fn build_model(buf: &Vec<u8>) -> [f64; 256] {
         model[sym as usize] += 1f64;
     }
 
-    model
+    return model;
 }
 
 #[derive(Clone)]

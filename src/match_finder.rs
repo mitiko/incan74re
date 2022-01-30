@@ -6,36 +6,32 @@ use crate::mdma::MdmaIndex;
 pub fn generate(mdma_index: &MdmaIndex, matches: &mut Vec<Match>) {
     let lcp_array = build_lcp_array(&mdma_index.sa, &mdma_index.buf);
     let timer = Instant::now();
-    let mut stack = Vec::with_capacity(256);
+    let mut stack: Vec<MatchGen> = Vec::with_capacity(256);
 
     for index in 0..lcp_array.len() {
-        let lcp_real = lcp_array[index];
-        // Branchless clamp to [0-255] (u8 range)
-        // TODO: Optimize this statement
         // TODO: Use u16 for the lz matches
-        let lcp = lcp_real + (lcp_real > 255) as i32 * (255 - lcp_real);
-        if stack.is_empty() {
-            for len in 2..=lcp {
-                stack.push(MatchGen::new(index, len as u8))
-            }
+        let lcp = lcp_array[index];
+        let lcp = if lcp > u8::MAX as i32 { u8::MAX } else { lcp as u8 };
+
+        // Push new matches
+        if lcp > stack.last().map_or(1, |m| m.len) {
+            stack.push(MatchGen::new(index, lcp));
         }
 
         // Pop old matches
-        while matches!(stack.last(), Some(m) if lcp < m.len as i32) {
-            let m_top = stack.pop().unwrap();
-            matches.push(Match::new(index as u32 - m_top.sa_index + 1, m_top));
-        }
+        while matches!(stack.last(), Some(m) if lcp < m.len) {
+            let mut min_len = stack.get(stack.len() - 2).map_or(2, |m| m.len + 1);
+            let mx = Match::new(index, stack.last().unwrap());
 
-        // Push new matches
-        while matches!(stack.last(), Some(m) if lcp > m.len as i32) {
-            let m_top = stack.last().unwrap();
-            let mg = MatchGen::new(index, m_top.len + 1);
-            stack.push(mg);
+            if lcp >= min_len { stack.last_mut().unwrap().len = lcp; min_len = lcp + 1; }
+            else              { stack.pop().unwrap(); }
+
+            for len in min_len..=mx.len { matches.push(Match::with_len(&mx, len)); }
         }
     }
 
     assert!(stack.is_empty());
-    println!("Generated matches in: {:?}", timer.elapsed());
+    println!("Generated {} matches in: {:?}", matches.len(), timer.elapsed());
 }
 
 pub fn build_lcp_array(sa: &Vec<i32>, buf: &Vec<u8>) -> Vec<i32> {
@@ -111,8 +107,14 @@ pub struct Match {
 }
 
 impl Match {
-    fn new(sa_count: u32, mg: MatchGen) -> Self {
-        Self { sa_index: mg.sa_index, len: mg.len, sa_count, self_ref: true }
+    fn new(index: usize, mg: &MatchGen) -> Self {
+        Self { self_ref: true, sa_index: mg.sa_index, sa_count: index as u32 - mg.sa_index + 1, len: mg.len }
+    }
+
+    fn with_len(m: &Match, len: u8) -> Self {
+        let mut clone = m.clone();
+        clone.len = len;
+        return clone;
     }
 
     pub fn get_range(&self) -> std::ops::Range<usize> {
@@ -122,41 +124,36 @@ impl Match {
 
 pub fn _static_analyze(mdma_index: &MdmaIndex) {
     let lcp_array = build_lcp_array(&mdma_index.sa, &mdma_index.buf);
-    let mut stack = Vec::with_capacity(256);
+    let mut stack: Vec<MatchGen> = Vec::with_capacity(256);
     let mut max_sa_count = 0;
     let mut max_len = 0;
     let mut count = 0;
     let mut counts = [0; 6];
 
     for index in 0..lcp_array.len() {
-        let lcp_real = lcp_array[index];
-        if lcp_real > max_len {
-            max_len = lcp_real;
-        }
-        let lcp = lcp_real + (lcp_real > 255) as i32 * (255 - lcp_real);
-        if stack.is_empty() {
-            for len in 2..=lcp {
-                stack.push(MatchGen::new(index, len as u8))
-            }
+        let lcp = lcp_array[index];
+        if  lcp > max_len { max_len = lcp; }
+        let lcp = if lcp > u8::MAX as i32 { u8::MAX } else { lcp as u8 };
+
+        // Push new matches
+        if lcp > stack.last().map_or(1, |m| m.len) {
+            stack.push(MatchGen::new(index, lcp));
         }
 
         // Pop old matches
-        while matches!(stack.last(), Some(m) if lcp < m.len as i32) {
-            let m_top = stack.pop().unwrap();
-            let sa_count = index as u32 - m_top.sa_index + 1;
-            if sa_count > max_sa_count { max_sa_count = sa_count; }
-            count += 1;
-            if m_top.len < 8 {
-                counts[(m_top.len - 2) as usize] += 1;
-            }
-            // matches.push(Match::new(index as u32 - m_top.sa_index + 1, m_top));
-        }
+        while matches!(stack.last(), Some(m) if lcp < m.len) {
+            let mut min_len = stack.get(stack.len() - 2).map_or(2, |m| m.len + 1);
+            let mx = Match::new(index, stack.last().unwrap());
 
-        // Push new matches
-        while matches!(stack.last(), Some(m) if lcp > m.len as i32) {
-            let m_top = stack.last().unwrap();
-            let mg = MatchGen::new(index, m_top.len + 1);
-            stack.push(mg);
+            if lcp >= min_len { stack.last_mut().unwrap().len = lcp; min_len = lcp + 1; }
+            else              { stack.pop().unwrap(); }
+
+            // Stats
+            for len in min_len..8 {
+                counts[(len - 2) as usize] += 1;
+            }
+            count += (mx.len - min_len + 1) as i32;
+            if mx.sa_count > max_sa_count { max_sa_count = mx.sa_count; }
         }
     }
 
