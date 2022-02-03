@@ -3,14 +3,10 @@ use std::io::{Write, BufWriter};
 
 use crate::mdma::{MdmaIndex, Word};
 
-const LITERAL_RANGE_START: usize = (u16::MAX - 256) as usize;
-
 // The format for the dictionary (of size n) (currently) is:
 // 2 bytes for dictionary.len() to encode n
 // n words with 1+word.len() bytes -> 1 byte for len and x bytes for the word
-// Note: The compressed version of the dicitonary may be sorted as the order doesn't matter for decoding
-// The len of each word can thus be better predicted using a model of its own
-// Sorting can also be done lexiographically
+// The order of the words in the dictionary is not restrictive and can be changed when further compressing the dict
 pub fn encode_dict(dict: &Vec<Word>, mdma_index: &MdmaIndex, file_name: &str) {
     let mut writer = BufWriter::new(File::create(file_name).unwrap());
     writer.write_all(&(dict.len() as u32).to_be_bytes()).unwrap();
@@ -18,8 +14,8 @@ pub fn encode_dict(dict: &Vec<Word>, mdma_index: &MdmaIndex, file_name: &str) {
     let buf: Vec<u8> = dict.iter()
         .map(|word| {
             let mut data = vec![0u8; word.len as usize + 1];
-            data[1..].copy_from_slice(&mdma_index.buf[word.get_range()]);
             data[0] = word.len as u8;
+            data[1..].copy_from_slice(&mdma_index.buf[word.get_range()]);
             return data;
         })
         .flatten()
@@ -30,37 +26,34 @@ pub fn encode_dict(dict: &Vec<Word>, mdma_index: &MdmaIndex, file_name: &str) {
 }
 
 // Creates a u16 array (big-endian order) of word indexes and writes it to a file
-// Indexes in the range [0 .. dict.len()] are dictionary words
-// Indexes in the range [u16::MAX-256 .. u16::MAX] are leftover uncovered raw literals
-// TODO: Don't use top of the range as it's confusing
-// Words can be decoded as dict[index], while literals as (index - (u16::MAX-256))
+// Uses the offsets array from the dictionary computing phase for O(n) parsing
+// Indexes in the range [0 .. 255] are leftover uncovered raw literals
+// Indexes in the range [256 .. 256 + dict.len()] are dictionary words
+// Words can be decoded as dict[index-256], while literals as (index as u8)
+
+// Offset array mapping to words, mapping to parsed u16:
+// -0     -> lit 0x00    -> 0
+// -1     -> lit 0x01    -> 1
+// -255   -> lit 0xff    -> 255
+// -256   -> dict[0]     -> 256
+// -257   -> dict[1]     -> 257
+// -65535 -> dict[65279] -> 65535 (u16::MAX)
 pub fn parse(dict: &Vec<Word>, mdma_index: &mut MdmaIndex, file_name: &str) {
-    assert!(dict.len() < LITERAL_RANGE_START);
-    let buf_capacity = 256;
     let mut writer = BufWriter::new(File::create(file_name).unwrap());
-    let mut buf = Vec::with_capacity(buf_capacity);
 
     // Cover with raw literals
     for (loc, x) in &mut mdma_index.offsets.iter_mut().enumerate() {
-        if *x >= 0 { *x = - (1 + LITERAL_RANGE_START as i32 + mdma_index.buf[loc] as i32); }
+        if *x >= 0 { *x = - (mdma_index.buf[loc] as i32); }
     }
 
     let mut idx = 0;
     while idx < mdma_index.offsets.len() {
-        // Parsed words are 1 index based
-        let word_idx = (-mdma_index.offsets[idx] - 1) as usize;
-        // TODO: Use 10-bit, 12-bit, 14-bit?, 16-bit parsing
-        // TODO: Update: Standardize to 16bits and let the entropy coder dismiss the first couple if needed
-        buf.extend((word_idx as u16).to_be_bytes());
+        let token = - mdma_index.offsets[idx] as usize;
 
-        if buf.len() >= buf_capacity {
-            writer.write_all(&buf).unwrap();
-            buf.clear();
-        }
+        writer.write_all(&(token as u16).to_be_bytes()).unwrap();
 
-        idx += if word_idx < dict.len() { dict[word_idx].len as usize } else { 1 };
+        idx += if token < 256 { 1 } else { dict[token-256].len as usize };
     }
 
-    writer.write_all(&buf).unwrap();
     writer.flush().unwrap();
 }

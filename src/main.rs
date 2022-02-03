@@ -23,6 +23,7 @@ fn main() -> std::io::Result<()> {
     parser::parse(&dict, &mut index, "parsed.bin");
 
     dbg!(dict.len());
+    println!("Using {} / 16 bits per token", (dict.len() as f64).log2().ceil());
     if dict.len() > 0 {
         dbg!(dict[0].location);
         dbg!(dict[0].len);

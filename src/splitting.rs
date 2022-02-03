@@ -12,7 +12,7 @@ pub fn split(word: &Word, mdma_index: &mut MdmaIndex) {
     locations.sort_unstable();
 
     let effective_len = word.len - 1;
-    let replace_token = - mdma_index.dict_len; // used for parsing later
+    let replace_token = - (mdma_index.dict_len + 256); // used for parsing later
     mdma_index.dict_len += 1;
 
     // Parse this word

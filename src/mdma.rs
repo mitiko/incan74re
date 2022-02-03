@@ -54,7 +54,7 @@ pub fn initialize(buf: Vec<u8>) -> MdmaIndex {
     let sa = build_suffix_array(&buf);
     let model = build_model(&buf);
     let offsets = build_offsets_array(buf.len());
-    MdmaIndex { n: (buf.len() as i32), buf, sa, offsets, model, sym_counts: [0f64; 256], dict_len: 1 }
+    MdmaIndex { n: (buf.len() as i32), buf, sa, offsets, model, sym_counts: [0f64; 256], dict_len: 0 }
 }
 
 fn build_suffix_array(buf: &Vec<u8>) -> Vec<i32> {
