@@ -19,11 +19,12 @@ fn main() -> std::io::Result<()> {
     println!("Dict took: {:?}", timer.elapsed());
 
     // TODO: Move encode dict and decode dict to a new file
+    let bits_per_token = (dict.len() as f64).log2().ceil() as i32;
+    println!("Bits per token: {bits_per_token}");
     parser::encode_dict(&dict, &index, "dict.bin");
-    parser::parse(&dict, &mut index, "parsed.bin");
+    parser::parse(&dict, &mut index, &format!("p-{}-{}.bin", file_name.split("/").last().unwrap(), bits_per_token));
 
     dbg!(dict.len());
-    println!("Using {} / 16 bits per token", (dict.len() as f64).log2().ceil());
     if dict.len() > 0 {
         dbg!(dict[0].location);
         dbg!(dict[0].len);
