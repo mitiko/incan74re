@@ -5,23 +5,21 @@ use crate::mdma::{MdmaIndex, Word};
 
 // The format for the dictionary (of size n) (currently) is:
 // 2 bytes for dictionary.len() to encode n
-// n words with 1+word.len() bytes -> 1 byte for len and x bytes for the word
+// n words with 2+word.len() bytes -> 2 bytes for len and x bytes for the word
 // The order of the words in the dictionary is not restrictive and can be changed when further compressing the dict
 pub fn encode_dict(dict: &Vec<Word>, mdma_index: &MdmaIndex, file_name: &str) {
     let mut writer = BufWriter::new(File::create(file_name).unwrap());
     writer.write_all(&(dict.len() as u32).to_be_bytes()).unwrap();
 
-    let buf: Vec<u8> = dict.iter()
+    dict.iter()
         .map(|word| {
-            let mut data = vec![0u8; word.len as usize + 1];
-            data[0] = word.len as u8;
-            data[1..].copy_from_slice(&mdma_index.buf[word.get_range()]);
+            let mut data = vec![0u8; word.len as usize + 2];
+            data[..2].copy_from_slice(&(word.len as u16).to_be_bytes());
+            data[2..].copy_from_slice(&mdma_index.buf[word.get_range()]);
             return data;
         })
-        .flatten()
-        .collect();
+        .for_each(|word_data| writer.write_all(&word_data).unwrap());
 
-    writer.write_all(&buf).unwrap();
     writer.flush().unwrap();
 }
 
