@@ -11,8 +11,8 @@ pub struct MdmaIndex {
     pub offsets:    Vec<i32>,
     pub model:      [f64; 256],
     pub sym_counts: [f64; 256],
-    pub n:          u32,
-    pub dict_len:   i32
+    pub n: u32,
+    pub replacement_token: i32
 }
 
 // The cast here is ok, because it's just an approximation we're making and the value may never become negative
@@ -51,7 +51,7 @@ pub fn initialize(buf: Vec<u8>) -> MdmaIndex {
     let model = build_model(&buf);
     let offsets = build_offsets_array(buf.len());
 
-    MdmaIndex { n: len, buf, sa, offsets, model, sym_counts: [0f64; 256], dict_len: 0 }
+    MdmaIndex { n: len, buf, sa, offsets, model, sym_counts: [0f64; 256], replacement_token: -256 }
 }
 
 fn build_suffix_array(buf: &[u8]) -> Vec<i32> {

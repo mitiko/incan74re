@@ -11,24 +11,27 @@ pub fn split(word: &Word, mdma_index: &mut MdmaIndex) {
     locations.copy_from_slice(&mdma_index.sa[word.get_sa_range()]);
     locations.sort_unstable();
 
-    let effective_len = word.len - 1;
-    let replace_token = - (mdma_index.dict_len + 256); // used for parsing later
-    mdma_index.dict_len += 1;
+    let effective_len = i32::from(word.len) - 1;
+    let word_len      = usize::from(word.len);
+    let rt = mdma_index.replacement_token; // used for parsing later
+    mdma_index.replacement_token -= 1;
 
     // Parse this word
     for loc in locations {
-        if mdma_index.offsets[loc as usize] >= effective_len {
-            let range = loc as usize ..= (loc + effective_len) as usize;
-            for x in range.rev() { mdma_index.offsets[x] = replace_token; }
+        let loc = loc as usize;
+        if mdma_index.offsets[loc] < effective_len { continue; }
 
-            // TODO: Manually unroll?
-            let mut idx = loc as usize;
-            let mut last = -1;
-            while idx > 0 {
-                idx -= 1; last += 1;
-                if mdma_index.offsets[idx] < 0 { break; }
-                mdma_index.offsets[idx] = last;
-            }
+        // Replace locations of the word with a token for parsing
+        mdma_index.offsets[loc..(loc + word_len)]
+            .iter_mut()
+            .rev()
+            .for_each(|x| *x = rt);
+
+        // TODO: Unroll?
+        // Calculate offsets, traversing the vec backwards
+        for (last, offset) in mdma_index.offsets[..loc].iter_mut().rev().enumerate() {
+            if *offset < 0 { break; }
+            *offset = last.try_into().unwrap();
         }
     }
 }
