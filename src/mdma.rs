@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::time::Instant;
 
 use crate::bindings;
@@ -38,10 +39,7 @@ pub fn build_dictionary(mdma_index: &mut MdmaIndex) -> Vec<Word> {
         let best_word = curr_matches.iter_mut()
             .filter(|m| m.is_valid)
             .filter_map(|m| rank(m, mdma_index))
-            .reduce(|best_word, word|
-                if word.rank > best_word.rank { word }
-                else { best_word }
-            );
+            .max_by(|x, y| cmp_f64(x.rank, y.rank));
 
         if best_word.is_none() { break; }
         let best_word = best_word.unwrap();
@@ -53,6 +51,24 @@ pub fn build_dictionary(mdma_index: &mut MdmaIndex) -> Vec<Word> {
     }
 
     dict
+}
+
+fn cmp_f64(a: f64, b: f64) -> Ordering {
+    let a_is_normal = a.is_normal();
+    let b_is_normal = b.is_normal();
+
+    match (a_is_normal, b_is_normal) {
+        (true, true) => {
+            match (a == b, a > b) {
+                (false, true) => Ordering::Greater,
+                (false, false) => Ordering::Less,
+                (true, _) => Ordering::Equal
+            }
+        },
+        (true, false) => Ordering::Greater,
+        (false, true) => Ordering::Less,
+        (false, false) => Ordering::Equal
+    }
 }
 
 fn build_suffix_array(buf: &[u8]) -> Vec<i32> {
