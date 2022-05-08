@@ -17,8 +17,8 @@ fn count_fast(m: &mut Match, mdma_index: &MdmaIndex) -> (u32, usize) {
 
     // TODO: Try unroll?
     // TODO: Prefetch?
-    for loc in &mdma_index.sa[range] {
-        if mdma_index.offsets[*loc as usize] >= effective_len { count += 1; }
+    for &loc in mdma_index.sa[range].iter() {
+        if mdma_index.offsets[loc as usize] >= effective_len { count += 1; }
     }
 
     (count, last_match)

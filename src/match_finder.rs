@@ -1,9 +1,6 @@
 use std::time::Instant;
 
-use crate::mdma::MdmaIndex;
-
-pub fn generate(mdma_index: &MdmaIndex, matches: &mut Vec<Match>) {
-    let lcp_array = build_lcp_array(&mdma_index.sa, &mdma_index.buf);
+pub fn generate(matches: &mut Vec<Match>, lcp_array: Vec<i32>) {
     let timer = Instant::now();
     let mut stack: Vec<MatchGen> = Vec::with_capacity(256);
 
@@ -29,45 +26,6 @@ pub fn generate(mdma_index: &MdmaIndex, matches: &mut Vec<Match>) {
 
     assert!(stack.is_empty());
     println!("Generated {} matches in: {:?}", matches.len(), timer.elapsed());
-}
-
-// TODO: Prefetch
-// Casts here are safe just unproven because libsais uses i32-s for the SA
-pub fn build_lcp_array(sa: &[i32], buf: &[u8]) -> Vec<u32> {
-    let timer = Instant::now();
-    let mut lcp = vec![0; sa.len()];
-    let mut sa_inv = vec![0; sa.len()];
-
-    for (i, &sa_idx) in sa.iter().enumerate() {
-        // prefetch here
-        sa_inv[sa_idx as usize] = i;
-    }
-
-    let mut k: u32 = 0;
-    let n = sa.len();
-    for (i, &sa_inv_idx) in sa_inv.iter().enumerate() {
-        if sa_inv_idx == n - 1 {
-            k = 0;
-            continue;
-        }
-
-        // prefetch here
-        let j = sa[sa_inv_idx + 1] as usize;
-        loop {
-            match (buf.get(i+k as usize), buf.get(j+k as usize)) {
-                (Some(loc1), Some(loc2)) if loc1 != loc2 => break,
-                (None, _) | (_, None) => break,
-                _ => k += 1
-            };
-        }
-
-        // prefetch here
-        lcp[sa_inv_idx] = k;
-        k = k.saturating_sub(1);
-    }
-
-    println!("Built LCP in {:?}", timer.elapsed());
-    lcp
 }
 
 // MatchGen is a more lightweight struct that only holds the len and sa_index
@@ -111,8 +69,7 @@ impl Match {
     }
 }
 
-pub fn _static_analyze(mdma_index: &MdmaIndex) {
-    let lcp_array = build_lcp_array(&mdma_index.sa, &mdma_index.buf);
+pub fn _static_analyze(lcp_array: Vec<i32>) {
     let mut stack: Vec<MatchGen> = Vec::with_capacity(256);
     let mut max_sa_count = 0;
     let mut max_len = 0;
