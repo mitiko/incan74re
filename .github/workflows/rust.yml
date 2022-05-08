@@ -16,6 +16,15 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+    - name: Pull libsais@v2.7.0
+      shell: bash
+      run: |
+        mkdir -p libs
+        git clone --depth 1 --branch v2.7.0 -n https://github.com/IlyaGrebnov/libsais.git
+        cd libsais
+        git checkout HEAD src/libsais.{c,h}
+        cp src/libsais.{c,h} ../libs
+        cd ..
     - name: Build
       run: cargo build --release --verbose
     - name: Run tests
