@@ -3,12 +3,26 @@
 extern "C" {
     #[doc = " Constructs the suffix array of a given string."]
     #[doc = " @param T [0..n-1] The input string."]
-    #[doc = " @param SA [0..n-1] The output array of suffixes."]
+    #[doc = " @param SA [0..n-1+fs] The output array of suffixes."]
     #[doc = " @param n The length of the given string."]
+    #[doc = " @param fs The extra space available at the end of SA array (0 should be enough for most cases)."]
+    #[doc = " @param freq [0..255] The output symbol frequency table (can be NULL)."]
     #[doc = " @return 0 if no error occurred, -1 or -2 otherwise."]
-    pub fn libsais(
-        T: *const ::std::os::raw::c_uchar,
-        SA: *mut ::std::os::raw::c_int,
-        n: ::std::os::raw::c_int,
-    ) -> ::std::os::raw::c_int;
+    pub fn libsais(T: *const u8, SA: *mut i32, n: i32, fs: i32, freq: *mut i32) -> i32;
+
+    #[doc = " Constructs the permuted longest common prefix array (PLCP) of a given string and a suffix array."]
+    #[doc = " @param T [0..n-1] The input string."]
+    #[doc = " @param SA [0..n-1] The input suffix array."]
+    #[doc = " @param PLCP [0..n-1] The output permuted longest common prefix array."]
+    #[doc = " @param n The length of the string and the suffix array."]
+    #[doc = " @return 0 if no error occurred, -1 otherwise."]
+    pub fn libsais_plcp(T: *const u8, SA: *const i32, PLCP: *mut i32, n: i32) -> i32;
+
+    #[doc = " Constructs the longest common prefix array (LCP) of a given permuted longest common prefix array (PLCP) and a suffix array."]
+    #[doc = " @param PLCP [0..n-1] The input permuted longest common prefix array."]
+    #[doc = " @param SA [0..n-1] The input suffix array."]
+    #[doc = " @param LCP [0..n-1] The output longest common prefix array (can be SA)."]
+    #[doc = " @param n The length of the permuted longest common prefix array and the suffix array."]
+    #[doc = " @return 0 if no error occurred, -1 otherwise."]
+    pub fn libsais_lcp(PLCP: *const i32, SA: *const i32, LCP: *mut i32, n: i32) -> i32;
 }

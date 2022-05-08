@@ -1,38 +1,40 @@
+use std::ops::Neg;
 use crate::match_finder::Match;
 use crate::mdma::MdmaIndex;
 
-pub fn count(m: &mut Match, mdma_index: &MdmaIndex) -> (i32, usize) {
-    match m.self_ref {
-        false => count_fast(m, mdma_index),
-        true => count_slow(m, mdma_index)
-    }
+pub fn count(m: &mut Match, mdma_index: &MdmaIndex) -> (u32, usize) {
+    if m.self_ref { count_slow(m, mdma_index) }
+    else          { count_fast(m, mdma_index) }
 }
 
-fn count_fast(m: &mut Match, mdma_index: &MdmaIndex) -> (i32, usize) {
+// Casts here are safe just unproven because libsais uses i32-s for the SA
+fn count_fast(m: &mut Match, mdma_index: &MdmaIndex) -> (u32, usize) {
     let mut count = 0;
-    let effective_len = m.len as i32 - 1;
+    let effective_len = i32::from(m.len) - 1;
 
     let last_match = mdma_index.sa[m.sa_index as usize] as usize;
     let range = m.get_range();
 
     // TODO: Try unroll?
-    for loc in &mdma_index.sa[range] {
-        if mdma_index.offsets[*loc as usize] >= effective_len { count += 1; }
+    // TODO: Prefetch?
+    for &loc in mdma_index.sa[range].iter() {
+        if mdma_index.offsets[loc as usize] >= effective_len { count += 1; }
     }
 
     (count, last_match)
 }
 
-fn count_slow(m: &mut Match, mdma_index: &MdmaIndex) -> (i32, usize) {
+// Casts here are safe just unproven because libsais uses i32-s for the SA
+fn count_slow(m: &mut Match, mdma_index: &MdmaIndex) -> (u32, usize) {
     let range = m.get_range();
     let mut locations = vec![0; range.len()];
     locations.copy_from_slice(&mdma_index.sa[range]);
     locations.sort_unstable();
 
-    let effective_len = m.len as i32 - 1;
+    let effective_len = i32::from(m.len) - 1;
     let mut count = 0;
     let mut flag = false;
-    let mut last_match = - (m.len as i32);
+    let mut last_match = i32::from(m.len).neg(); // 0-len
 
     for loc in locations {
         // TODO: Optimize branching? -> there're no branches in the loop,
@@ -49,5 +51,5 @@ fn count_slow(m: &mut Match, mdma_index: &MdmaIndex) -> (i32, usize) {
     }
 
     m.self_ref = flag;
-    (count, last_match as usize)
+    (count, last_match.try_into().unwrap_or(usize::MAX))
 }

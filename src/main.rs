@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::{time::Instant, fs};
 
 mod mdma;
@@ -8,27 +9,27 @@ mod counting;
 mod splitting;
 mod parser;
 
-fn main() -> std::io::Result<()> {
-    let file_name = "/data/calgary/book1";
+fn main() {
+    let file = PathBuf::from("/data/calgary/book1");
+    let file_name = file.file_name().expect("Couldn't deduce filename").to_os_string();
+    let file_name =  file_name.to_str().expect("Invalid utf8 filename");
 
-    println!("Building dict for: {}", file_name);
-    let timer = Instant::now();
-    let buf = fs::read(file_name)?;
+    println!("Building dict for: {:?}", file_name);
+    let buf = fs::read(file).expect("Couldn't read file into memory");
     let mut index = mdma::initialize(buf);
+    let timer = Instant::now();
     let dict = mdma::build_dictionary(&mut index);
-    println!("Dict took: {:?}", timer.elapsed());
+    println!("Building dict took: {:?}", timer.elapsed());
 
     // TODO: Move encode dict and decode dict to a new file
-    let bits_per_token = (dict.len() as f64).log2().ceil() as i32;
+    let bits_per_token = (dict.len() as f64).log2().ceil() as u32;
     println!("Bits per token: {bits_per_token}");
-    parser::encode_dict(&dict, &index, "dict.bin");
-    parser::parse(&dict, &mut index, &format!("p-{}-{}.bin", file_name.split("/").last().unwrap(), bits_per_token));
+    parser::encode_dict(&dict, &index, &format!("dict-{}.bin", file_name));
+    parser::parse(&dict, &mut index, &format!("p-{}-{bits_per_token}.bin", file_name));
 
     dbg!(dict.len());
-    if dict.len() > 0 {
+    if !dict.is_empty() {
         dbg!(dict[0].location);
         dbg!(dict[0].len);
     }
-
-    return Ok(());
 }

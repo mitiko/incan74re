@@ -17,4 +17,4 @@ cc = "1.0.71"
 [profile.release]
 debug = 1           # Add debug symbols for profiling
 lto = "fat"         # Enable Link Time Optimization
-# codegen-units = 1 # Reduce number of codegen units to increase optimizations.
+codegen-units = 1 # Reduce number of codegen units to increase optimizations.
