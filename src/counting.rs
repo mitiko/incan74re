@@ -1,34 +1,34 @@
 use std::ops::Neg;
 use crate::match_finder::Match;
-use crate::mdma::MdmaIndex;
+use crate::incan74re::DictIndex;
 
-pub fn count(m: &mut Match, mdma_index: &MdmaIndex) -> (u32, usize) {
-    if m.self_ref { count_slow(m, mdma_index) }
-    else          { count_fast(m, mdma_index) }
+pub fn count(m: &mut Match, dict_index: &DictIndex) -> (u32, usize) {
+    if m.self_ref { count_slow(m, dict_index) }
+    else          { count_fast(m, dict_index) }
 }
 
 // Casts here are safe just unproven because libsais uses i32-s for the SA
-fn count_fast(m: &mut Match, mdma_index: &MdmaIndex) -> (u32, usize) {
+fn count_fast(m: &mut Match, dict_index: &DictIndex) -> (u32, usize) {
     let mut count = 0;
     let effective_len = i32::from(m.len) - 1;
 
-    let last_match = mdma_index.sa[m.sa_index as usize] as usize;
+    let last_match = dict_index.sa[m.sa_index as usize] as usize;
     let range = m.get_range();
 
     // TODO: Try unroll?
     // TODO: Prefetch?
-    for &loc in mdma_index.sa[range].iter() {
-        if mdma_index.offsets[loc as usize] >= effective_len { count += 1; }
+    for &loc in dict_index.sa[range].iter() {
+        if dict_index.offsets[loc as usize] >= effective_len { count += 1; }
     }
 
     (count, last_match)
 }
 
 // Casts here are safe just unproven because libsais uses i32-s for the SA
-fn count_slow(m: &mut Match, mdma_index: &MdmaIndex) -> (u32, usize) {
+fn count_slow(m: &mut Match, dict_index: &DictIndex) -> (u32, usize) {
     let range = m.get_range();
     let mut locations = vec![0; range.len()];
-    locations.copy_from_slice(&mdma_index.sa[range]);
+    locations.copy_from_slice(&dict_index.sa[range]);
     locations.sort_unstable();
 
     let effective_len = i32::from(m.len) - 1;
@@ -44,7 +44,7 @@ fn count_slow(m: &mut Match, mdma_index: &MdmaIndex) -> (u32, usize) {
         // but perhaps the branch predictor is fine as it is and can even speculatively prefetch offsets[loc]
         if loc <= last_match + effective_len { flag = true; continue; }
 
-        if mdma_index.offsets[loc as usize] >= effective_len {
+        if dict_index.offsets[loc as usize] >= effective_len {
             count += 1;
             last_match = loc;
         }

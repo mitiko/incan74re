@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::{time::Instant, fs};
 
-mod mdma;
+mod incan74re;
 mod bindings;
 mod match_finder;
 mod entropy_ranking;
@@ -16,9 +16,9 @@ fn main() {
 
     println!("Building dict for: {:?}", file_name);
     let buf = fs::read(file).expect("Couldn't read file into memory");
-    let mut index = mdma::initialize(buf);
+    let mut index = incan74re::initialize(buf);
     let timer = Instant::now();
-    let dict = mdma::build_dictionary(&mut index);
+    let dict = incan74re::build_dictionary(&mut index);
     println!("Building dict took: {:?}", timer.elapsed());
 
     // TODO: Move encode dict and decode dict to a new file

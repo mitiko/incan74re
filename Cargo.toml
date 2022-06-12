@@ -1,10 +1,10 @@
 [package]
-name = "mdma"
+name = "incan74re"
 version = "0.1.0"
 edition = "2021"
 authors = ["Dimitar Rusev <mitikodev@gmail.com>"]
-description = "A dynamic scheme for global dictionary optimization."
-repository = "https://github.com/Mitiko/mdma/"
+description = "A global dynamic dictionary optimizer."
+repository = "https://github.com/Mitiko/incan74re/"
 license = "GPL-3.0"
 keywords = ["compression", "dictionary"]
 categories = ["compression"]
@@ -17,4 +17,4 @@ cc = "1.0.71"
 [profile.release]
 debug = 1           # Add debug symbols for profiling
 lto = "fat"         # Enable Link Time Optimization
-codegen-units = 1 # Reduce number of codegen units to increase optimizations.
+codegen-units = 1   # Reduce number of codegen units to increase optimizations.

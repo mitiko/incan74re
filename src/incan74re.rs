@@ -6,7 +6,7 @@ use crate::entropy_ranking::{rank, update_model};
 use crate::splitting::split;
 use crate::match_finder;
 
-pub struct MdmaIndex {
+pub struct DictIndex {
     pub buf:        Vec<u8>,
     pub sa:         Vec<i32>,
     pub offsets:    Vec<i32>,
@@ -16,29 +16,29 @@ pub struct MdmaIndex {
     pub replacement_token: i32
 }
 
-pub fn initialize(buf: Vec<u8>) -> MdmaIndex {
+pub fn initialize(buf: Vec<u8>) -> DictIndex {
     let len: u32 = buf.len().try_into().expect("Buffer must fit into u32 type!");
     let sa = build_suffix_array(&buf);
     let model = build_model(&buf);
     let offsets = build_offsets_array(buf.len());
 
-    MdmaIndex { n: len, buf, sa, offsets, model, sym_counts: [0f64; 256], replacement_token: -256 }
+    DictIndex { n: len, buf, sa, offsets, model, sym_counts: [0f64; 256], replacement_token: -256 }
 }
 
-pub fn build_dictionary(mdma_index: &mut MdmaIndex) -> Vec<Word> {
+pub fn build_dictionary(dict_index: &mut DictIndex) -> Vec<Word> {
     // The cast here is ok, because it's just an approximation we're making and the value may never become negative
-    let mut curr_matches = Vec::with_capacity((mdma_index.buf.len() as f64 * 2.3) as usize);
+    let mut curr_matches = Vec::with_capacity((dict_index.buf.len() as f64 * 2.3) as usize);
     let mut dict = Vec::with_capacity(128);
 
     // Initialize with all the macthes
     // match_finder::_static_analyze(lcp_array);
-    let lcp_array = build_lcp_array(&mdma_index.buf, &mdma_index.sa);
+    let lcp_array = build_lcp_array(&dict_index.buf, &dict_index.sa);
     match_finder::generate(&mut curr_matches, lcp_array);
 
     loop {
         let best_word = curr_matches.iter_mut()
             .filter(|m| m.is_valid)
-            .filter_map(|m| rank(m, mdma_index))
+            .filter_map(|m| rank(m, dict_index))
             .max_by(|x, y| cmp_f64(x.rank, y.rank));
 
         if best_word.is_none() { break; }
@@ -46,8 +46,8 @@ pub fn build_dictionary(mdma_index: &mut MdmaIndex) -> Vec<Word> {
 
         // best_word._print();
         dict.push(best_word.clone());
-        split(&best_word, mdma_index);
-        update_model(&best_word, mdma_index);
+        split(&best_word, dict_index);
+        update_model(&best_word, dict_index);
     }
 
     dict

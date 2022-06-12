@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::{Write, BufWriter};
 use std::ops::Neg;
 
-use crate::mdma::{MdmaIndex, Word};
+use crate::incan74re::{DictIndex, Word};
 
 // The format for the dictionary (of size n) (currently) is:
 // 2 bytes for dictionary.len() to encode n
@@ -10,7 +10,7 @@ use crate::mdma::{MdmaIndex, Word};
 // The order of the words in the dictionary is not restrictive and can be changed when further compressing the dict
 
 // TODO: Propagate io errors up
-pub fn encode_dict(dict: &[Word], mdma_index: &MdmaIndex, file_name: &str) {
+pub fn encode_dict(dict: &[Word], dict_index: &DictIndex, file_name: &str) {
     let mut writer = BufWriter::new(File::create(file_name).unwrap());
     writer.write_all(&u32::try_from(dict.len()).unwrap().to_be_bytes()).unwrap();
 
@@ -18,7 +18,7 @@ pub fn encode_dict(dict: &[Word], mdma_index: &MdmaIndex, file_name: &str) {
         .map(|word| {
             let mut data = vec![0u8; word.len as usize + 2];
             data[..2].copy_from_slice(&(word.len as u16).to_be_bytes());
-            data[2..].copy_from_slice(&mdma_index.buf[word.get_range()]);
+            data[2..].copy_from_slice(&dict_index.buf[word.get_range()]);
 
             data
         })
@@ -40,17 +40,17 @@ pub fn encode_dict(dict: &[Word], mdma_index: &MdmaIndex, file_name: &str) {
 // -256   -> dict[0]     -> 256
 // -257   -> dict[1]     -> 257
 // -65535 -> dict[65279] -> 65535 (u16::MAX)
-pub fn parse(dict: &[Word], mdma_index: &mut MdmaIndex, file_name: &str) {
+pub fn parse(dict: &[Word], dict_index: &mut DictIndex, file_name: &str) {
     let mut writer = BufWriter::new(File::create(file_name).unwrap());
 
     // Cover with raw literals
-    for (loc, x) in &mut mdma_index.offsets.iter_mut().enumerate() {
-        if *x >= 0 { *x = i32::from(mdma_index.buf[loc]).neg(); }
+    for (loc, x) in &mut dict_index.offsets.iter_mut().enumerate() {
+        if *x >= 0 { *x = i32::from(dict_index.buf[loc]).neg(); }
     }
 
     let mut idx = 0;
-    while idx < mdma_index.offsets.len() {
-        let token = mdma_index.offsets[idx].neg() as usize;
+    while idx < dict_index.offsets.len() {
+        let token = dict_index.offsets[idx].neg() as usize;
 
         writer.write_all(&(token as u16).to_be_bytes()).unwrap();
 
